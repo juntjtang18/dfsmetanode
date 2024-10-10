@@ -1,4 +1,4 @@
-package com.fdu.msacs.dfsmetasvr;
+package com.fdu.msacs.dfsmetanode;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -9,9 +9,9 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.fdu.msacs</groupId>
-	<artifactId>dfsmetasvr</artifactId>
+	<artifactId>dfsmetanode</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>dfsmetasvr</name>
+	<name>dfsmetanode</name>
 	<description>Meta Server of Distributed File System</description>
 	<url/>
 	<licenses>
@@ -70,6 +70,13 @@
 						</exclude>
 					</excludes>
 				</configuration>
+	            <executions>
+	                <execution>
+	                    <goals>
+	                        <goal>repackage</goal>
+	                    </goals>
+	                </execution>
+	            </executions>
 			</plugin>
 		</plugins>
 	</build>

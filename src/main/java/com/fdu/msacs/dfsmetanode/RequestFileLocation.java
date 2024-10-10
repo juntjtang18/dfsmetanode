@@ -1,4 +1,4 @@
-package com.fdu.msacs.dfsmetasvr;
+package com.fdu.msacs.dfsmetanode;
 
 public class RequestFileLocation {
     private String filename;

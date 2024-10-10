@@ -1,4 +1,4 @@
-package com.fdu.msacs.dfsmetasvr;
+package com.fdu.msacs.dfsmetanode;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
