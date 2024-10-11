@@ -1,12 +1,27 @@
 @echo off
+setlocal
+
+set NETWORK_NAME=mybridge
+set CONTAINER_NAME=dfs-meta-node
+
 echo "Building Docker image..."
-docker build -t dfs-meta-svr .
+docker build -t %CONTAINER_NAME% .
 
-echo "Stopping and Removing existing containers..."
-docker stop dfs-meta-svr
-docker rm dfs-meta-svr
+echo "Checking if the network '%NETWORK_NAME%' exists..."
+docker network inspect %NETWORK_NAME% >nul 2>&1
 
-echo "Deploying new containers..."
-docker run -d -p 8080:8080 --name dfs-meta-svr dfs-meta-svr
+if %errorlevel% neq 0 (
+    echo "Network '%NETWORK_NAME%' does not exist. Creating it..."
+    docker network create %NETWORK_NAME%
+) else (
+    echo "Network '%NETWORK_NAME%' already exists."
+)
+
+echo "Stopping and removing existing containers..."
+docker stop %CONTAINER_NAME% >nul 2>&1
+docker rm %CONTAINER_NAME% >nul 2>&1
+
+echo "Deploying new container..."
+docker run -d --network %NETWORK_NAME% -p 8080:8080 --name %CONTAINER_NAME% %CONTAINER_NAME%
 
 echo "Deployment completed!"

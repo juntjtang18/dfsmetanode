@@ -27,7 +27,8 @@ public class MetadataController {
     private List<String> registeredNodes = new ArrayList<>();
 
     @PostMapping("/register-node")
-    public ResponseEntity<String> registerNode(@RequestBody String nodeAddress) {
+    public ResponseEntity<String> registerNode(@RequestBody RequestNode request) {
+    	String nodeAddress = request.getNodeUrl();
         registeredNodes.add(nodeAddress);
         logger.info("A new nodes registered: {} ", nodeAddress);
         
@@ -43,6 +44,9 @@ public class MetadataController {
         fileNodeMap.computeIfAbsent(filename, k -> new ArrayList<>()).add(nodeUrl);
         nodeFileMap.computeIfAbsent(nodeUrl, k-> new ArrayList<>()).add(filename);
         logger.info("File {} registered to : {}", filename, nodeUrl);
+        // Log the contents of fileNodeMap and nodeFileMap
+        logger.info("Current fileNodeMap: {}", fileNodeMap);
+        logger.info("Current nodeFileMap: {}", nodeFileMap);
         
         return ResponseEntity.ok("File location registered: " + filename + " on " + nodeUrl);
     }

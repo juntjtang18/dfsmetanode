@@ -2,6 +2,7 @@ package com.fdu.msacs.dfsmetanode;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fdu.msacs.dfsmetanode.RequestFileLocation;
+import com.fdu.msacs.dfsmetanode.RequestNode;
 import com.fdu.msacs.dfsmetanode.RequestReplicationNodes;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -17,6 +21,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
 
@@ -40,14 +45,11 @@ public class MetadataControllerTest {
 
     @Test
     public void testRegisterNode() throws Exception {
-        String nodeAddress = "http://localhost:8080/node1";
-
-        ResponseEntity<String> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/metadata/register-node",
-                nodeAddress,
-                String.class
-        );
-
+        String nodeAddress = "http://localhost:8081/node1";
+        RequestNode request = new RequestNode();
+        request.setNodeUrl(nodeAddress);
+        ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", request, String.class);
+        
         assertThat(response.getStatusCodeValue()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo("Node registered: " + nodeAddress);
     }
@@ -72,7 +74,7 @@ public class MetadataControllerTest {
     public void testGetNodesForFile() throws Exception {
         // First, register a node and file location
         String nodeAddress = "http://localhost:8080/node1";
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress, String.class);
+        registerNode(nodeAddress);
 
         RequestFileLocation request = new RequestFileLocation();
         request.setFilename("testfile.txt");
@@ -97,7 +99,7 @@ public class MetadataControllerTest {
         request.setFilename("testfile.txt");
         request.setNodeUrl(nodeAddress);
 
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress, String.class);
+        registerNode(nodeAddress);
         restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-file-location", request, String.class);
 
         // Clear the cache
@@ -116,9 +118,9 @@ public class MetadataControllerTest {
         // Register some nodes
         String nodeAddress1 = "http://localhost:8080/node1";
         String nodeAddress2 = "http://localhost:8080/node2";
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress1, String.class);
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress2, String.class);
-
+        registerNode(nodeAddress1);
+        registerNode(nodeAddress2);
+        
         // Now, get the registered nodes
         ResponseEntity<List> response = restTemplate.getForEntity(
                 "http://localhost:" + port + "/metadata/get-registered-nodes",
@@ -133,7 +135,7 @@ public class MetadataControllerTest {
     public void testGetFileNodeMapping() throws Exception {
         // Register a node
         String nodeAddress = "http://localhost:8080/node1";
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress, String.class);
+        registerNode(nodeAddress);
 
         // Register file location on the node
         RequestFileLocation request = new RequestFileLocation();
@@ -161,11 +163,11 @@ public class MetadataControllerTest {
         String nodeAddress4 = "http://node4.com:8080";
 
         // Register the nodes
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress1, String.class);
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress2, String.class);
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress3, String.class);
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress4, String.class);
-
+        registerNode(nodeAddress1);
+        registerNode(nodeAddress2);
+        registerNode(nodeAddress3);
+        registerNode(nodeAddress4);
+        
         // Prepare request object
         RequestReplicationNodes replicationRequest = new RequestReplicationNodes();
         replicationRequest.setFilename("testfile.txt");
@@ -225,7 +227,7 @@ public class MetadataControllerTest {
     public void testGetNodeFiles() throws Exception {
         // Register a node
         String nodeAddress = "http://localhost:8080/node1";
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-node", nodeAddress, String.class);
+        registerNode(nodeAddress);
 
         // Register some files for the node
         RequestFileLocation requestFile1 = new RequestFileLocation();
@@ -252,5 +254,19 @@ public class MetadataControllerTest {
         // Assert the response
         assertThat(response.getStatusCodeValue()).isEqualTo(200);
         assertThat(response.getBody()).containsExactlyInAnyOrder("file1.txt", "file2.txt");
+    }
+    
+    public void registerNode(String nodeAddress) {
+        RequestNode request = new RequestNode();
+        request.setNodeUrl(nodeAddress);
+        
+        ResponseEntity<String> response = restTemplate.postForEntity(
+        		"http://localhost:" + port + "/metadata/register-node", 
+        		request, 
+        		String.class);
+        
+        assertThat(response.getStatusCodeValue()).isEqualTo(200);
+        assertThat(response.getBody()).isEqualTo("Node registered: " + nodeAddress);
+    	
     }
 }
