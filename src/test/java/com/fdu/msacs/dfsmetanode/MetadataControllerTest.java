@@ -7,13 +7,17 @@ import com.fdu.msacs.dfsmetanode.RequestReplicationNodes;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -23,10 +27,13 @@ import org.springframework.web.util.UriUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class MetadataControllerTest {
+    private static final Logger logger = LoggerFactory.getLogger(MetadataControllerTest.class);
 
     @LocalServerPort
     private int port;
@@ -41,6 +48,10 @@ public class MetadataControllerTest {
         // Clear the cache before each test
         restTemplate.postForEntity("http://localhost:" + port + "/metadata/clear-cache", null, String.class);
         restTemplate.postForEntity("http://localhost:" + port + "/metadata/clear-registered-nodes", null, String.class);        
+    }
+
+    private String getBaseUrl() {
+        return "http://localhost:" + port+ "/metadata";
     }
 
     @Test
@@ -133,24 +144,36 @@ public class MetadataControllerTest {
 
     @Test
     public void testGetFileNodeMapping() throws Exception {
-        // Register a node
-        String nodeAddress = "http://localhost:8080/node1";
-        registerNode(nodeAddress);
+    	clearCache();
+    	clearRegisteredNodes();
+    	
+        // Step 1: Register three nodes
+    	registerNode("http://localhost:8081");
+    	registerNode("http://localhost:8082");
+    	registerNode("http://localhost:8083");
+    	
+        // Step 2: Register a file to nodes 2 and 3
+        RequestFileLocation requestFileLocation1 = new RequestFileLocation();
+        requestFileLocation1.setFilename("testFile.txt");
+        requestFileLocation1.setNodeUrl("http://localhost:8082");
+        restTemplate.postForEntity(getBaseUrl() + "/register-file-location", requestFileLocation1, String.class);
+        
+        RequestFileLocation requestFileLocation2 = new RequestFileLocation();
+        requestFileLocation2.setFilename("testFile.txt");
+        requestFileLocation2.setNodeUrl("http://localhost:8083");
+        restTemplate.postForEntity(getBaseUrl() + "/register-file-location", requestFileLocation2, String.class);
 
-        // Register file location on the node
-        RequestFileLocation request = new RequestFileLocation();
-        request.setFilename("testfile.txt");
-        request.setNodeUrl(nodeAddress);
-        restTemplate.postForEntity("http://localhost:" + port + "/metadata/register-file-location", request, String.class);
-
-        // Now, get the file node mapping for "testfile.txt"
-        ResponseEntity<List> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/metadata/get-file-node-mapping/testfile.txt",
-                List.class
+        // Step 3: Call the endpoint and verify the response
+        ResponseEntity<List<String>> response = restTemplate.exchange(
+            getBaseUrl() + "/get-file-node-mapping/testFile.txt",
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<String>>() {}
         );
 
-        assertThat(response.getStatusCodeValue()).isEqualTo(200);
-        assertThat(response.getBody()).containsExactly(nodeAddress);
+        // Step 4: Assert the expected outcome
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals(List.of("http://localhost:8082", "http://localhost:8083"), response.getBody());
     }
 
 
@@ -269,4 +292,208 @@ public class MetadataControllerTest {
         assertThat(response.getBody()).isEqualTo("Node registered: " + nodeAddress);
     	
     }
+    
+    @Test
+    void clearCache() {
+        ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:" + port + "/metadata/clear-cache", null, String.class);
+        
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals("Cache cleared", response.getBody());
+    }
+
+    @Test
+    void clearRegisteredNodes() {
+    	ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:" + port + "/metadata/clear-registered-nodes", null, String.class);        
+        
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals("Registered nodes cleared.", response.getBody());
+    }
+
+    @Test
+    void pingSvr() {
+        ResponseEntity<String> response = restTemplate.exchange(getBaseUrl() + "/pingsvr", HttpMethod.GET, null, String.class);
+        
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals("Metadata Server is running...", response.getBody());
+    }
+    
+    @Test
+    void registerFileLocation() {
+        RequestFileLocation request = new RequestFileLocation();
+        request.setFilename("testFile.txt");
+        request.setNodeUrl("http://localhost:8081");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Content-Type", "application/json");
+        HttpEntity<RequestFileLocation> entity = new HttpEntity<>(request, headers);
+
+        ResponseEntity<String> response = restTemplate.exchange(getBaseUrl() + "/register-file-location", HttpMethod.POST, entity, String.class);
+        
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals("File location registered: testFile.txt on http://localhost:8081", response.getBody());
+    }
+
+    @Test
+    void getNodesForFile() {
+    	clearCache();
+    	clearRegisteredNodes();
+    	
+        // Step 1: Register multiple nodes
+        String node1 = "http://localhost:8081";
+        String node2 = "http://localhost:8082";
+        String node3 = "http://localhost:8083";
+        
+
+        registerNode(node1);
+        registerNode(node2);
+        registerNode(node3);
+        
+        // Step 2: Register a file location to node1
+        RequestFileLocation fileRequest = new RequestFileLocation();
+        fileRequest.setFilename("testFile.txt");
+        fileRequest.setNodeUrl(node1);
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Content-Type", "application/json");
+        HttpEntity<RequestFileLocation> fileRequestEntity = new HttpEntity<>(fileRequest, headers);
+        restTemplate.exchange(getBaseUrl() + "/register-file-location", HttpMethod.POST, fileRequestEntity, String.class);
+
+        // Step 3: Call the endpoint to get nodes for the file
+        ResponseEntity<List<String>> response = restTemplate.exchange(getBaseUrl() + "/nodes-for-file/testFile.txt", HttpMethod.GET, null, new ParameterizedTypeReference<List<String>>() {});
+
+        // Assert the response status code
+        assertEquals(200, response.getStatusCodeValue());
+
+        // Assert that the response contains the expected nodes (node2 and node3)
+        List<String> expectedNodes = List.of(node1);
+        assertEquals(expectedNodes, response.getBody());
+    }
+
+
+    @Test
+    void getReplicationNodes() {
+        clearCache();
+        clearRegisteredNodes();
+        
+        // Step 1: Register three nodes
+        String node1 = "http://localhost:8081";
+        String node2 = "http://localhost:8082";
+        String node3 = "http://localhost:8083";
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Registering node1
+        RequestNode requestNode1 = new RequestNode();
+        requestNode1.setNodeUrl(node1);
+        HttpEntity<RequestNode> requestEntity1 = new HttpEntity<>(requestNode1, headers);
+        restTemplate.exchange(getBaseUrl() + "/register-node", HttpMethod.POST, requestEntity1, String.class);
+
+        // Registering node2
+        RequestNode requestNode2 = new RequestNode();
+        requestNode2.setNodeUrl(node2);
+        HttpEntity<RequestNode> requestEntity2 = new HttpEntity<>(requestNode2, headers);
+        restTemplate.exchange(getBaseUrl() + "/register-node", HttpMethod.POST, requestEntity2, String.class);
+
+        // Registering node3
+        RequestNode requestNode3 = new RequestNode();
+        requestNode3.setNodeUrl(node3);
+        HttpEntity<RequestNode> requestEntity3 = new HttpEntity<>(requestNode3, headers);
+        restTemplate.exchange(getBaseUrl() + "/register-node", HttpMethod.POST, requestEntity3, String.class);
+
+        // Step 2: Register a file location to node2
+        RequestFileLocation fileRequest = new RequestFileLocation();
+        fileRequest.setFilename("testFile.txt");
+        fileRequest.setNodeUrl(node2);
+
+        HttpEntity<RequestFileLocation> fileRequestEntity = new HttpEntity<>(fileRequest, headers);
+        restTemplate.exchange(getBaseUrl() + "/register-file-location", HttpMethod.POST, fileRequestEntity, String.class);
+
+        // Step 3: Create the request for replication nodes
+        RequestReplicationNodes request = new RequestReplicationNodes();
+        request.setFilename("testFile.txt");
+        request.setRequestingNodeUrl(node2);
+
+        HttpEntity<RequestReplicationNodes> entity = new HttpEntity<>(request, headers);
+
+        // Step 4: Call the endpoint to get replication nodes
+        ResponseEntity<List<String>> response = restTemplate.exchange(
+            getBaseUrl() + "/get-replication-nodes",
+            HttpMethod.POST,
+            entity,
+            new ParameterizedTypeReference<List<String>>() {}
+        );
+
+        // Assert the response status code
+        assertEquals(200, response.getStatusCodeValue());
+
+        // Sort both the expected nodes and the response body before comparing
+        List<String> expectedNodes = List.of(node1, node3);
+        List<String> sortedExpectedNodes = new ArrayList<>(expectedNodes);
+        List<String> sortedResponseNodes = new ArrayList<>(response.getBody());
+
+        Collections.sort(sortedExpectedNodes);
+        Collections.sort(sortedResponseNodes);
+
+        // Assert that the sorted lists are equal
+        assertEquals(sortedExpectedNodes, sortedResponseNodes);
+    }
+
+
+
+    @Test
+    void getRegisteredNodes() {
+        ResponseEntity<List<String>> response = restTemplate.exchange(getBaseUrl() + "/get-registered-nodes", HttpMethod.GET, null, new ParameterizedTypeReference<List<String>>() {});
+        
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals(List.of(), response.getBody()); // Adjust based on expected outcome
+    }
+
+    @Test
+    void getNodeFiles() {
+        // Step 1: Clear cache and registered nodes
+    	clearCache();
+    	clearRegisteredNodes();
+
+        // Step 2: Register three nodes
+        registerNode("http://localhost:8081");
+        registerNode("http://localhost:8082");
+        registerNode("http://localhost:8083");
+        
+        // Step 3: Register three files to node 1
+        RequestFileLocation requestFileLocation1 = new RequestFileLocation();
+        requestFileLocation1.setFilename("file1.txt");
+        requestFileLocation1.setNodeUrl("http://localhost:8081");
+        restTemplate.postForEntity(getBaseUrl() + "/register-file-location", requestFileLocation1, String.class);
+
+        RequestFileLocation requestFileLocation2 = new RequestFileLocation();
+        requestFileLocation2.setFilename("file2.txt");
+        requestFileLocation2.setNodeUrl("http://localhost:8081");
+        restTemplate.postForEntity(getBaseUrl() + "/register-file-location", requestFileLocation2, String.class);
+
+        RequestFileLocation requestFileLocation3 = new RequestFileLocation();
+        requestFileLocation3.setFilename("file3.txt");
+        requestFileLocation3.setNodeUrl("http://localhost:8081");
+        restTemplate.postForEntity(getBaseUrl() + "/register-file-location", requestFileLocation3, String.class);
+
+        // Step 4: Call the endpoint and verify the response
+        RequestNode request = new RequestNode();
+        request.setNodeUrl("http://localhost:8081");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Content-Type", "application/json");
+        HttpEntity<RequestNode> entity = new HttpEntity<>(request, headers);
+
+        ResponseEntity<List<String>> response = restTemplate.exchange(
+            getBaseUrl() + "/get-node-files",
+            HttpMethod.POST,
+            entity,
+            new ParameterizedTypeReference<List<String>>() {}
+        );
+
+        // Step 5: Assert the expected outcome
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals(List.of("file1.txt", "file2.txt", "file3.txt"), response.getBody());
+    }
+
 }
