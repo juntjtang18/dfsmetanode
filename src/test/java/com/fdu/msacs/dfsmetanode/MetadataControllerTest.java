@@ -121,7 +121,7 @@ public class MetadataControllerTest {
         // Verify that the cache is indeed cleared
         ResponseEntity<List> nodesResponse = restTemplate.getForEntity("http://localhost:" + port + "/metadata/nodes-for-file/testfile.txt", List.class);
         assertThat(nodesResponse.getStatusCodeValue()).isEqualTo(200);
-        assertThat(nodesResponse.getBody()).isNull();  // Expect null or empty since the cache is cleared
+        assertThat(nodesResponse.getBody()).isEmpty();  // Expect an empty list since the cache is cleared
     }
 
     @Test
