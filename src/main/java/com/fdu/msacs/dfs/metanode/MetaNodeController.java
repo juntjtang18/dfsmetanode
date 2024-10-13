@@ -94,7 +94,7 @@ public class MetaNodeController {
 
         // Construct the URL for the upload endpoint of the selected node
         // if it's in development mode, use localhost, as the network is not working and using host port mapping to access 
-        String uploadUrl = "http://localhost:" + selectedNode.getLocalUrl() + "/dfs/upload"; // Change '/upload' to your actual upload endpoint
+        String uploadUrl = selectedNode.getLocalUrl() + "/dfs/upload"; // Change '/upload' to your actual upload endpoint
         
         logger.info("Upload URL for node {}: {}", selectedNode, uploadUrl);
         return uploadUrl;
