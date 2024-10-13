@@ -21,12 +21,11 @@ public class MetaNodeController {
     public MetaNodeController(MetaNodeService metaNodeService) {
         this.metaNodeService = metaNodeService;
     }
-
+    
     @PostMapping("/metadata/register-node")
-    public ResponseEntity<String> registerNode(@RequestBody RequestNode request) {
-        String nodeAddress = request.getNodeUrl();
-        String response = metaNodeService.registerNode(nodeAddress);
-        
+    public ResponseEntity<String> registerNode(@RequestBody DfsNode dfsNode) {
+        String response = metaNodeService.registerNode(dfsNode);
+
         if (response.contains("already registered")) {
             return ResponseEntity.status(200).body(response); // Conflict status
         }
@@ -42,14 +41,14 @@ public class MetaNodeController {
     }
 
     @PostMapping("/metadata/get-replication-nodes")
-    public ResponseEntity<List<String>> getReplicationNodes(@RequestBody RequestReplicationNodes request) {
-        List<String> replicationNodes = metaNodeService.getReplicationNodes(request.getFilename(), request.getRequestingNodeUrl());
+    public ResponseEntity<List<DfsNode>> getReplicationNodes(@RequestBody RequestReplicationNodes request) {
+        List<DfsNode> replicationNodes = metaNodeService.getReplicationNodes(request.getFilename(), request.getRequestingNodeUrl());
         return ResponseEntity.ok(replicationNodes);
     }
 
     @GetMapping("/metadata/get-registered-nodes")
-    public ResponseEntity<Set<String>> getRegisteredNodes() {
-        Set<String> registeredNodes = metaNodeService.getRegisteredNodes();
+    public ResponseEntity<List<DfsNode>> getRegisteredNodes() {
+        List<DfsNode> registeredNodes = metaNodeService.getRegisteredNodes();
         return ResponseEntity.ok(registeredNodes);
     }
     
@@ -87,14 +86,15 @@ public class MetaNodeController {
     @GetMapping("/metadata/upload-url")
     public String getUploadUrl() {
         // Select a node using Weighted Round Robin
-        String selectedNode = metaNodeService.selectNodeForUpload();
+        DfsNode selectedNode = metaNodeService.selectNodeForUpload();
         if (selectedNode == null) {
             logger.error("No registered nodes available for upload.");
             return "No registered nodes available for upload.";
         }
 
         // Construct the URL for the upload endpoint of the selected node
-        String uploadUrl = selectedNode + "/upload"; // Change '/upload' to your actual upload endpoint
+        // if it's in development mode, use localhost, as the network is not working and using host port mapping to access 
+        String uploadUrl = "http://localhost:" + selectedNode.getHostPort() + "/upload"; // Change '/upload' to your actual upload endpoint
         
         logger.info("Upload URL for node {}: {}", selectedNode, uploadUrl);
         return uploadUrl;

@@ -1,165 +1,116 @@
 package com.fdu.msacs.dfs.metanode;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.util.UriUtils;
-
-import com.fdu.msacs.dfs.metanode.mongodb.FileNodeMappingRepository;
-import com.fdu.msacs.dfs.metanode.mongodb.FileNodes;
-import com.fdu.msacs.dfs.metanode.mongodb.NodeFileMappingRepository;
-import com.fdu.msacs.dfs.metanode.mongodb.NodeFiles;
-import com.fdu.msacs.dfs.metanode.mongodb.RegisteredNode;
-import com.fdu.msacs.dfs.metanode.mongodb.RegisteredNodeRepository;
 
 @Service
 public class MetaNodeService {
     private static final Logger logger = LoggerFactory.getLogger(MetaNodeService.class);
     
-    @Autowired
-    private FileNodeMappingRepository fileNodeMapping;
-    @Autowired
-    private NodeFileMappingRepository nodeFileMapping;
-    @Autowired
-    private RegisteredNodeRepository registeredNodeRepository;
-    
-    private Set<String> registeredNodes = new HashSet<>();
-    private Map<String, Integer> nodeWeights = new HashMap<>();
-    private int totalWeight = 0;
+    private Map<String, Set<String>> fileNodeMapping;
+    private Map<String, Set<String>> nodeFileMapping;
+    private Map<String, DfsNode> registeredNodes;
     private int currentNodeIndex = 0;
 
-        public String registerNode(String nodeAddress) {
-        if (registeredNodeRepository.findByNodeUrl(nodeAddress) == null) {
-            RegisteredNode registeredNode = new RegisteredNode();
-            registeredNode.setNodeUrl(nodeAddress);
-            registeredNodeRepository.save(registeredNode);
-            registeredNodes.add(nodeAddress);
-            logger.info("A new node registered: {}", nodeAddress);
-            return "Node registered: " + nodeAddress;
+    public MetaNodeService() {
+    	this.fileNodeMapping = new HashMap<String, Set<String>>();
+    	this.nodeFileMapping = new HashMap<String, Set<String>>();
+    	this.registeredNodes = new HashMap<String, DfsNode>();
+    }
+    
+    public String registerNode(DfsNode node) {
+    	String nodeUrl = node.getNodeUrl();
+        if (registeredNodes.get(nodeUrl) == null) {
+            registeredNodes.put(nodeUrl, node);            
+            logger.info("A new node registered: {}", nodeUrl);
+            return "Node registered: " + nodeUrl;
         } else {
-            logger.warn("Node already registered: {}", nodeAddress);
-            return "Node already registered: " + nodeAddress; // Conflict status
+            logger.warn("Node already registered: {}", nodeUrl);
+            return "Node already registered: " + nodeUrl; // Conflict status
         }
     }
 
     public String registerFileLocation(String filename, String nodeUrl) {
         // Update or create the FileNode entry
-        FileNodes fileNode = fileNodeMapping.findByFilename(filename);
-        if (fileNode == null) {
-            fileNode = new FileNodes();
-            fileNode.setFilename(filename);
-            fileNode.setNodeUrls(new ArrayList<>());
+        Set<String> nodeList = fileNodeMapping.get(filename);
+        if (nodeList==null) {
+        	nodeList = new HashSet<String>();
+        	fileNodeMapping.put(filename, nodeList);
         }
-        fileNode.getNodeUrls().add(nodeUrl);
-        fileNodeMapping.save(fileNode);
-
-        // Update or create the NodeFileMapping entry
-        NodeFiles nodeFiles = nodeFileMapping.findByNodeUrl(nodeUrl);
-        if (nodeFiles == null) {
-            nodeFiles = new NodeFiles();
-            nodeFiles.setNodeUrl(nodeUrl);
-            nodeFiles.setFilenames(new ArrayList<>());
+        nodeList.add(nodeUrl);
+        
+        Set<String> fileList = nodeFileMapping.get(nodeUrl);
+        if (fileList==null) {
+        	fileList = new HashSet<String>();
+        	nodeFileMapping.put(nodeUrl, fileList);
         }
-        nodeFiles.getFilenames().add(filename);
-        nodeFileMapping.save(nodeFiles);
+        fileList.add(filename);
         
         logger.info("File {} registered to : {}", filename, nodeUrl);
         return "File location registered: " + filename + " on " + nodeUrl;
     }
 
     public List<String> getNodesForFile(String filename) {
-        FileNodes fileNode = fileNodeMapping.findByFilename(filename);
-        List<String> nodeAddresses = fileNode != null ? fileNode.getNodeUrls() : new ArrayList<>();
-        logger.info("Searching the node for file {}, return {}", filename, nodeAddresses);
-        return nodeAddresses;
+        Set<String> nodes = fileNodeMapping.getOrDefault(filename, new HashSet<String>());
+        List<String> nodeUrls = new ArrayList<>(nodes);
+        logger.info("Searching the node for file {}, return {}", filename, nodeUrls);
+        return nodeUrls;
     }
 
     
-    public List<String> getReplicationNodes(String filename, String requestingNodeUrl) {
+    public List<DfsNode> getReplicationNodes(String filename, String requestingNodeUrl) {
         logger.info("/metadata/get-replication-nodes called for filename: {} and requestingNodeUrl: {}", filename, requestingNodeUrl);
-        String decodedRequestingNodeUrl = UriUtils.decode(requestingNodeUrl, StandardCharsets.UTF_8);
 
-        List<String> availableNodes = new ArrayList<>(registeredNodes);
-        availableNodes.remove(decodedRequestingNodeUrl);
-
-        FileNodes fileNode = fileNodeMapping.findByFilename(filename);
-        if (fileNode != null) {
-            availableNodes.removeAll(fileNode.getNodeUrls());
-        }
+        List<DfsNode> availableNodes = new ArrayList<>(registeredNodes.values());
 
         logger.info("Available nodes after filtering: {}", availableNodes);
         return availableNodes;
     }
 
-    public Set<String> getRegisteredNodes() {
-        registeredNodes.clear();
-        registeredNodes.addAll(registeredNodeRepository.findAll().stream()
-                .map(RegisteredNode::getNodeUrl)
-                .toList());
-        return registeredNodes;
+    public List<DfsNode> getRegisteredNodes() {
+        return new ArrayList<DfsNode>(registeredNodes.values());
     }
 
     public List<String> getNodeFiles(String nodeUrl) {
-        List<String> files = new ArrayList<>();
-        NodeFiles nodeFiles = nodeFileMapping.findByNodeUrl(nodeUrl);
-        if (nodeFiles != null) {
-            files.addAll(nodeFiles.getFilenames());
-        }
-        return files;
+    	Set<String> files = nodeFileMapping.getOrDefault(nodeUrl, new HashSet<String>());
+        return new ArrayList<String>(files);
     }
 
     public void clearCache() {
-        fileNodeMapping.deleteAll(); // Clear all file-node mappings
-        nodeFileMapping.deleteAll();
+        fileNodeMapping.clear();
+        nodeFileMapping.clear();
+        
         logger.info("Cache cleared.");
     }
 
     public void clearRegisteredNodes() {
-        registeredNodeRepository.deleteAll(); // Clear all registered nodes
         registeredNodes.clear();
         logger.info("Registered nodes cleared.");
     }
 
 	public List<String> getFileNodes(String filename) {
-		List<String> nodes = new ArrayList<>();
-		FileNodes fileNodes = fileNodeMapping.findByFilename(filename);
-		if (fileNodes!=null) {
-			nodes.addAll(fileNodes.getNodeUrls());
-		}
-		return nodes;
+		Set<String> nodes = fileNodeMapping.getOrDefault(filename, new HashSet<String>());
+		return new ArrayList<String>(nodes);
 	}
 	
-    public String selectNodeForUpload() {
-        // Refresh registered nodes
-        getRegisteredNodes();
-
-        // If no registered nodes, return null
+    public DfsNode selectNodeForUpload() {
         if (registeredNodes.isEmpty()) {
             return null;
         }
 
-        List<String> nodeList = new ArrayList<>(registeredNodes);
-        //int weight = nodeWeights.getOrDefault(nodeList.get(currentNodeIndex), 1);
-        String selectedNode = nodeList.get(currentNodeIndex);
+        List<DfsNode> nodeList = new ArrayList<>(registeredNodes.values());        
+        DfsNode selectedNode = nodeList.get(currentNodeIndex);
 
         // Update currentNodeIndex based on the total weight
         currentNodeIndex = (currentNodeIndex + 1) % nodeList.size();
 
         return selectedNode;
-    }
-
-    public void updateNodeWeights(Map<String, Integer> weights) {
-        this.nodeWeights = weights;
-        totalWeight = weights.values().stream().mapToInt(Integer::intValue).sum();
-        logger.info("Node weights updated: {}", nodeWeights);
     }
 }

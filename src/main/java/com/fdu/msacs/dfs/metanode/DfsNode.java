@@ -4,6 +4,21 @@ public class DfsNode {
 	private String nodeUrl;
 	private String hostPort;
 	
+	public DfsNode() {
+		this.nodeUrl = "";
+		this.hostPort = "";
+	}
+	
+	public DfsNode(String nodeUrl) {
+		this.nodeUrl = nodeUrl;
+		this.hostPort = "";
+	}
+	
+	public DfsNode(String nodeUrl, String hostPort) {
+		this.nodeUrl = nodeUrl;
+		this.hostPort = hostPort;
+	}
+	
 	public String getNodeUrl() {
 		return nodeUrl;
 	}
