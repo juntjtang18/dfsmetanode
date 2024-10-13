@@ -10,6 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
+import com.fdu.msacs.dfs.metanode.mdb.BlockNodeMappingRepo;
+
 @Service
 public class MetaNodeService {
     private static final Logger logger = LoggerFactory.getLogger(MetaNodeService.class);
@@ -18,11 +21,13 @@ public class MetaNodeService {
     private Map<String, Set<String>> nodeFileMapping;
     private Map<String, DfsNode> registeredNodes;
     private int currentNodeIndex = 0;
-
-    public MetaNodeService() {
+    private BlockNodeMappingRepo blockNodeMapping;
+    
+    public MetaNodeService(BlockNodeMappingRepo blockNodeMapping) {
     	this.fileNodeMapping = new HashMap<String, Set<String>>();
     	this.nodeFileMapping = new HashMap<String, Set<String>>();
     	this.registeredNodes = new HashMap<String, DfsNode>();
+    	this.blockNodeMapping = blockNodeMapping;
     }
     
     public String registerNode(DfsNode node) {
@@ -55,6 +60,21 @@ public class MetaNodeService {
         
         logger.info("File {} registered to : {}", filename, nodeUrl);
         return "File location registered: " + filename + " on " + nodeUrl;
+    }
+    
+    public String registerBlockLocation(String hash, String nodeUrl) {
+		logger.debug("MetaService: registerBlockLocation: {}->{}", hash, nodeUrl);
+		
+    	BlockNode blockNode = blockNodeMapping.findByHash(hash);
+    	if (blockNode == null) {
+    		blockNode = new BlockNode();
+    		blockNode.setHash(hash);
+    		blockNode.getNodeUrls().add(nodeUrl);
+    	}
+    	blockNodeMapping.save(blockNode);
+        logger.debug("Block {} registered to : {}", hash, nodeUrl);
+        logger.debug("Current blockNodeMapping: {}", blockNodeMapping.findAll());
+        return "Block location registered: " + hash + " on " + nodeUrl;
     }
 
     public List<String> getNodesForFile(String filename) {
@@ -122,4 +142,5 @@ public class MetaNodeService {
 
         return selectedNode;
     }
+
 }

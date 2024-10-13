@@ -1,8 +1,6 @@
 package com.fdu.msacs.dfs.metanode;
 
 import java.util.List;
-import java.util.Set;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +35,15 @@ public class MetaNodeController {
         String filename = request.getFilename();
         String nodeUrl = request.getNodeUrl();
         String response = metaNodeService.registerFileLocation(filename, nodeUrl);
+        return ResponseEntity.ok(response);
+    }
+    
+    @PostMapping("/metadata/register-block-location")
+    public ResponseEntity<String> registerBlockLocation(@RequestBody RequestBlockNode request) {
+    	logger.info("/metadata/register-block-location requested with: {}->{}", request.hash, request.nodeUrl);
+        String hash = request.hash;
+        String nodeUrl = request.nodeUrl;
+        String response = metaNodeService.registerBlockLocation(hash, nodeUrl);
         return ResponseEntity.ok(response);
     }
 
