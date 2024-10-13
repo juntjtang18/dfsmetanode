@@ -40,11 +40,11 @@ public class MetaNodeServiceTest {
         DfsNode node = new DfsNode("http://localhost:8081");
         metaNodeService.registerNode(node);
         
-        String response = metaNodeService.registerFileLocation("testFile.txt", node.getNodeUrl());
+        String response = metaNodeService.registerFileLocation("testFile.txt", node.getContainerUrl());
         assertEquals("File location registered: testFile.txt on http://localhost:8081", response);
         
         // Registering the file location again
-        response = metaNodeService.registerFileLocation("testFile.txt", node.getNodeUrl());
+        response = metaNodeService.registerFileLocation("testFile.txt", node.getContainerUrl());
         assertEquals("File location registered: testFile.txt on http://localhost:8081", response);
     }
 
@@ -55,24 +55,26 @@ public class MetaNodeServiceTest {
         metaNodeService.registerNode(node1);
         metaNodeService.registerNode(node2);
         
-        metaNodeService.registerFileLocation("testFile.txt", node1.getNodeUrl());
-        metaNodeService.registerFileLocation("testFile.txt", node2.getNodeUrl());
+        metaNodeService.registerFileLocation("testFile.txt", node1.getContainerUrl());
+        metaNodeService.registerFileLocation("testFile.txt", node2.getContainerUrl());
 
         List<String> nodes = metaNodeService.getNodesForFile("testFile.txt");
         
-        assertThat(nodes).containsExactlyInAnyOrder(node1.getNodeUrl(), node2.getNodeUrl());
+        assertThat(nodes).containsExactlyInAnyOrder(node1.getContainerUrl(), node2.getContainerUrl());
     }
 
     @Test
     public void testGetReplicationNodes() {
         DfsNode node1 = new DfsNode("http://localhost:8081");
         DfsNode node2 = new DfsNode("http://localhost:8082");
+        DfsNode node3 = new DfsNode("http://localhost:8083");
         metaNodeService.registerNode(node1);
         metaNodeService.registerNode(node2);
+        metaNodeService.registerNode(node3);
 
         List<DfsNode> replicationNodes = metaNodeService.getReplicationNodes("testFile.txt", "http://localhost:8081");
         
-        assertThat(replicationNodes).containsExactlyInAnyOrder(node1, node2);
+        assertThat(replicationNodes).containsExactlyInAnyOrder(node2, node3);
     }
 
     @Test
@@ -91,9 +93,9 @@ public class MetaNodeServiceTest {
     public void testGetNodeFiles() {
         DfsNode node = new DfsNode("http://localhost:8081");
         metaNodeService.registerNode(node);
-        metaNodeService.registerFileLocation("testFile.txt", node.getNodeUrl());
+        metaNodeService.registerFileLocation("testFile.txt", node.getContainerUrl());
 
-        List<String> files = metaNodeService.getNodeFiles(node.getNodeUrl());
+        List<String> files = metaNodeService.getNodeFiles(node.getContainerUrl());
         
         assertThat(files).containsExactly("testFile.txt");
     }
@@ -102,11 +104,11 @@ public class MetaNodeServiceTest {
     public void testClearCache() {
         DfsNode node = new DfsNode("http://localhost:8081");
         metaNodeService.registerNode(node);
-        metaNodeService.registerFileLocation("testFile.txt", node.getNodeUrl());
+        metaNodeService.registerFileLocation("testFile.txt", node.getContainerUrl());
         
         metaNodeService.clearCache();
 
-        assertThat(metaNodeService.getNodeFiles(node.getNodeUrl())).isEmpty();
+        assertThat(metaNodeService.getNodeFiles(node.getContainerUrl())).isEmpty();
     }
 
     @Test

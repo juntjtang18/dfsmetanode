@@ -21,16 +21,12 @@ if %errorlevel% neq 0 (
 echo "Stopping and removing existing containers..."
 docker stop %META_NODE_NAME% >nul 2>&1
 docker rm %META_NODE_NAME% >nul 2>&1
-docker stop %MONGODB_NAME% >nul 2>&1
-docker rm %MONGODB_NAME% >nul 2>&1
-docker stop %MONGODB_LOCAL_NAME% >nul 2>&1
-docker rm %MONGODB_LOCAL_NAME% >nul 2>&1
 
-echo "Deploying local MongoDB container (accessible at localhost:27017)..."
-docker run --name mongodb -d -p 27017:27017 -v mongodata:/data/db mongo
+REM echo "Deploying local MongoDB container (accessible at localhost:27017)..."
+REM docker run --name mongodb -d -p 27017:27017 -v mongodata:/data/db mongo
 
-echo "Deploying MongoDB container (accessible by container name dfs-mongodb)..."
-docker run -d --network %NETWORK_NAME% --name %MONGODB_NAME% -p 27017:27017 -v mongodb-data:/data/db mongo:latest
+REM echo "Deploying MongoDB container (accessible by container name dfs-mongodb)..."
+REM docker run -d --network %NETWORK_NAME% --name %MONGODB_NAME% -p 27017:27017 -v mongodb-data:/data/db mongo:latest
 
 echo "Building Docker image for the DFS Meta Node..."
 docker build -t %META_NODE_NAME% .

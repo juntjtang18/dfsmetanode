@@ -153,7 +153,7 @@ public class MetaNodeControllerTest {
         assertThat(response.getBody()).hasSize(2); // Assert that the response body contains exactly two elements
 
         // Assert that the response contains the expected node URLs
-        assertThat(response.getBody()).extracting(DfsNode::getNodeUrl)
+        assertThat(response.getBody()).extracting(DfsNode::getContainerUrl)
                 .containsExactlyInAnyOrder(nodeAddress1, nodeAddress2);
     }
 
@@ -196,7 +196,7 @@ public class MetaNodeControllerTest {
         assertThat(dfsNodes).hasSize(2); // Ensure there are 2 nodes
 
         // Verify that the list contains nodes with the expected URLs
-        assertThat(dfsNodes).extracting(DfsNode::getNodeUrl)
+        assertThat(dfsNodes).extracting(DfsNode::getContainerUrl)
             .containsExactlyInAnyOrder("http://localhost:8082", "http://localhost:8083");
     }
 

@@ -26,7 +26,7 @@ public class MetaNodeService {
     }
     
     public String registerNode(DfsNode node) {
-    	String nodeUrl = node.getNodeUrl();
+    	String nodeUrl = node.getContainerUrl();
         if (registeredNodes.get(nodeUrl) == null) {
             registeredNodes.put(nodeUrl, node);            
             logger.info("A new node registered: {}", nodeUrl);
@@ -68,11 +68,20 @@ public class MetaNodeService {
     public List<DfsNode> getReplicationNodes(String filename, String requestingNodeUrl) {
         logger.info("/metadata/get-replication-nodes called for filename: {} and requestingNodeUrl: {}", filename, requestingNodeUrl);
 
-        List<DfsNode> availableNodes = new ArrayList<>(registeredNodes.values());
+        // Step 1: Create a list of available nodes and filter out the requesting node
+        List<DfsNode> availableNodes = registeredNodes.values().stream()
+            .filter(node -> !node.getContainerUrl().equals(requestingNodeUrl))
+            .toList();
 
-        logger.info("Available nodes after filtering: {}", availableNodes);
+        // Step 2: If more than 2 nodes remain, limit the list to 2 nodes
+        if (availableNodes.size() > 2) {
+            availableNodes = availableNodes.subList(0, 2);
+        }
+
+        logger.info("Available nodes after filtering and limiting: {}", availableNodes);
         return availableNodes;
     }
+
 
     public List<DfsNode> getRegisteredNodes() {
         return new ArrayList<DfsNode>(registeredNodes.values());
