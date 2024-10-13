@@ -1,4 +1,4 @@
-package com.fdu.msacs.dfsmetanode.mongodb;
+package com.fdu.msacs.dfs.metanode.mongodb;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;

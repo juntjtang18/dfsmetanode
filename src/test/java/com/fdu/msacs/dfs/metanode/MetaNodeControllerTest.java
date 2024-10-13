@@ -1,9 +1,9 @@
-package com.fdu.msacs.dfsmetanode;
+package com.fdu.msacs.dfs.metanode;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fdu.msacs.dfsmetanode.RequestFileLocation;
-import com.fdu.msacs.dfsmetanode.RequestNode;
-import com.fdu.msacs.dfsmetanode.RequestReplicationNodes;
+import com.fdu.msacs.dfs.metanode.RequestFileLocation;
+import com.fdu.msacs.dfs.metanode.RequestNode;
+import com.fdu.msacs.dfs.metanode.RequestReplicationNodes;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,8 +32,8 @@ import java.util.Collections;
 import java.util.List;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-public class MetadataControllerTest {
-    private static final Logger logger = LoggerFactory.getLogger(MetadataControllerTest.class);
+public class MetaNodeControllerTest {
+    private static final Logger logger = LoggerFactory.getLogger(MetaNodeControllerTest.class);
 
     @LocalServerPort
     private int port;
@@ -495,5 +495,37 @@ public class MetadataControllerTest {
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(List.of("file1.txt", "file2.txt", "file3.txt"), response.getBody());
     }
-
+    
+    @Test
+    void testUploadUrl() {
+        // Step 1: Clear cache and registered nodes
+    	clearCache();
+    	clearRegisteredNodes();
+    	
+        // Step 2: Register three nodes
+    	String node1 = "http://node1:8081";
+    	String node2 = "http://node2:8081";
+    	String node3 = "http://node3:8081";
+    	
+        registerNode(node1);
+        registerNode(node2);
+        registerNode(node3);
+        
+        ResponseEntity<String> response1 = restTemplate.exchange(getBaseUrl() + "/upload-url", HttpMethod.GET, null, String.class);
+        assertEquals(200, response1.getStatusCodeValue());
+        assertEquals(node2 + "/upload", response1.getBody());
+        
+        ResponseEntity<String> response2 = restTemplate.exchange(getBaseUrl() + "/upload-url", HttpMethod.GET, null, String.class);
+        assertEquals(200, response2.getStatusCodeValue());
+        assertEquals(node1 + "/upload", response2.getBody());
+        
+        ResponseEntity<String> response3 = restTemplate.exchange(getBaseUrl() + "/upload-url", HttpMethod.GET, null, String.class);
+        assertEquals(200, response3.getStatusCodeValue());
+        assertEquals(node3 + "/upload", response3.getBody());
+        
+        ResponseEntity<String> response4 = restTemplate.exchange(getBaseUrl() + "/upload-url", HttpMethod.GET, null, String.class);
+        assertEquals(200, response4.getStatusCodeValue());
+        assertEquals(node2 + "/upload", response4.getBody());
+        
+    }
 }

@@ -1,4 +1,4 @@
-package com.fdu.msacs.dfsmetanode;
+package com.fdu.msacs.dfs.metanode;
 
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;

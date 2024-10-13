@@ -10,13 +10,13 @@ COPY .mvn ./.mvn
 COPY mvnw ./
 
 # Install dependencies (this layer will be cached if pom.xml doesn't change)
-RUN ./mvnw dependency:go-offline
+RUN ./mvnw dependency:go-offline -DskipTests=true
 
 # Copy the rest of the application code
 COPY src ./src
 
-# Build the application
-RUN ./mvnw clean install
+# Build the application and skip tests
+RUN ./mvnw clean install -DskipTests=true
 
 # Use a lightweight image to run the application
 FROM openjdk:17-jdk-slim

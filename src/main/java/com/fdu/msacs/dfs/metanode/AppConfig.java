@@ -1,4 +1,4 @@
-package com.fdu.msacs.dfsmetanode;
+package com.fdu.msacs.dfs.metanode;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,4 +18,5 @@ public class AppConfig {
 	public ObjectMapper objectMapper() {
 		return new ObjectMapper();
 	}
+	
 }
