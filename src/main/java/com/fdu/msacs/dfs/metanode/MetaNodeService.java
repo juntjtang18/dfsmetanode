@@ -1,16 +1,10 @@
 package com.fdu.msacs.dfs.metanode;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
@@ -20,76 +14,32 @@ import com.fdu.msacs.dfs.metanode.mdb.FileNodeMappingRepo;
 import com.fdu.msacs.dfs.metanode.mdb.NodeFileMapping;
 import com.fdu.msacs.dfs.metanode.mdb.NodeFileMappingRepo;
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
-import com.fdu.msacs.dfs.metanode.meta.DfsNode.HealthStatus;
+import com.fdu.msacs.dfs.metanode.meta.FileRefManager;
 
 @Service
 public class MetaNodeService {
     private static final Logger logger = LoggerFactory.getLogger(MetaNodeService.class);
     
+    @Autowired
     private FileNodeMappingRepo fileNodeMappingRepo;
+    @Autowired
     private NodeFileMappingRepo nodeFileMappingRepo;
-    private ConcurrentHashMap<String, DfsNode> registeredNodes;
-    private int currentNodeIndex = 0;
-    private BlockNodeMappingRepo blockNodeMapping;
-    private ConcurrentHashMap<String, DfsNode> deadNodes;
-    
-    @Value("${dfs.metanode.healthcheck.down_threshold:6}") int HEALTH_CHECK_THRESHOLD; // seconds
-    @Value("${dfs.metanode.healthcheck.warning_threshold:3}") int WARNING_THRESHOLD; // seconds before downgrading to WARNING
-    private ExecutorService executorService; // Thread pool for handling dead nodes
+    @Autowired
+    private BlockNodeMappingRepo blockNodeMappingRepo;
+    @Autowired
+    private FileRefManager fileRefManager;
+    @Autowired
+    private NodeManager nodeManager;  // New NodeManager class for node management logic
 
-    public MetaNodeService(BlockNodeMappingRepo blockNodeMapping,
-					        FileNodeMappingRepo fileNodeMappingRepo,
-					        NodeFileMappingRepo nodeFileMappingRepo) 
-    {
-		this.registeredNodes = new ConcurrentHashMap<>();
-		this.blockNodeMapping = blockNodeMapping;
-		this.fileNodeMappingRepo = fileNodeMappingRepo;
-		this.nodeFileMappingRepo = nodeFileMappingRepo;
-		this.deadNodes = new ConcurrentHashMap<>();
-        executorService = Executors.newFixedThreadPool(10); // Set pool size based on expected load
-	}
-    
-    public String registerNode(DfsNode node) {
-        String nodeUrl = node.getContainerUrl();
-        DfsNode existingNode = registeredNodes.get(nodeUrl);
-
-        // Check if the node is in the deadNodes list
-        if (deadNodes.containsKey(nodeUrl)) {
-            // Remove from deadNodes and add to registeredNodes
-            deadNodes.remove(nodeUrl);
-            registeredNodes.put(nodeUrl, node);
-            
-            node.setHealthStatus(HealthStatus.HEALTHY);
-            node.setLastTimeReport(new Date());
-            
-            logger.info("A dead node revives: {}", nodeUrl);
-            return "A dead node revives: " + nodeUrl;
-        }
-
-        // If the node is not in the deadNodes list, proceed with normal registration or heartbeat update
-        if (existingNode == null) {
-            registeredNodes.put(nodeUrl, node);
-            logger.info("A new node registered: {}", nodeUrl);
-            return "Node registered: " + nodeUrl;
-        } else {
-            existingNode.setHealthStatus(HealthStatus.HEALTHY);
-            existingNode.setLastTimeReport(new Date()); // Update last report time using Date
-            logger.info("Node heartbeat listened from: {}", nodeUrl);
-            return "Received Heartbeat from " + nodeUrl;
-        }
-    }
-
-
-    
     public String registerFileLocation(String filename, String nodeUrl) {
         // Update or create the FileNode entry
-        FileNodeMapping fileNodeMapping = fileNodeMappingRepo.findById(filename)
+        FileNodeMapping fileNodeMapping = fileNodeMappingRepo.findByFilename(filename)
                 .orElse(new FileNodeMapping(filename));
         fileNodeMapping.getNodeUrls().add(nodeUrl);
         fileNodeMappingRepo.save(fileNodeMapping);
 
         // Update or create the NodeFile entry
-        NodeFileMapping nodeFileMapping = nodeFileMappingRepo.findById(nodeUrl)
+        NodeFileMapping nodeFileMapping = nodeFileMappingRepo.findByNodeUrl(nodeUrl)
                 .orElse(new NodeFileMapping(nodeUrl));
         nodeFileMapping.getFilenames().add(filename);
         nodeFileMappingRepo.save(nodeFileMapping);
@@ -98,55 +48,31 @@ public class MetaNodeService {
         return "File location registered: " + filename + " on " + nodeUrl;
     }
 
-    
     public String registerBlockLocation(String hash, String nodeUrl) {
-		logger.debug("MetaService: registerBlockLocation: {}->{}", hash, nodeUrl);
-		
-    	BlockNode blockNode = blockNodeMapping.findByHash(hash);
-    	if (blockNode == null) {
-    		blockNode = new BlockNode();
-    		blockNode.setHash(hash);
-    		blockNode.getNodeUrls().add(nodeUrl);
-    	}
-    	blockNodeMapping.save(blockNode);
+        logger.debug("MetaService: registerBlockLocation: {}->{}", hash, nodeUrl);
+
+        BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
+        if (blockNode == null) {
+            blockNode = new BlockNode();
+            blockNode.setHash(hash);
+            blockNode.getNodeUrls().add(nodeUrl);
+        }
+        blockNodeMappingRepo.save(blockNode);
         logger.debug("Block {} registered to : {}", hash, nodeUrl);
-        logger.debug("Current blockNodeMapping: {}", blockNodeMapping.findAll());
+        logger.debug("Current blockNodeMapping: {}", blockNodeMappingRepo.findAll());
         return "Block location registered: " + hash + " on " + nodeUrl;
     }
 
     public List<String> getNodesForFile(String filename) {
-        FileNodeMapping fileNodeMapping = fileNodeMappingRepo.findById(filename).orElse(new FileNodeMapping());
+        FileNodeMapping fileNodeMapping = fileNodeMappingRepo.findByFilename(filename).orElse(new FileNodeMapping());
         List<String> nodeUrls = new ArrayList<>(fileNodeMapping.getNodeUrls());
         logger.info("Searching the node for file {}, return {}", filename, nodeUrls);
         return nodeUrls;
     }
-    
-    public List<DfsNode> getReplicationNodes(String filename, String requestingNodeUrl) {
-        logger.info("/metadata/get-replication-nodes called for filename: {} and requestingNodeUrl: {}", filename, requestingNodeUrl);
-
-        // Step 1: Create a list of available nodes and filter out the requesting node
-        List<DfsNode> availableNodes = registeredNodes.values().stream()
-            .filter(node -> !node.getContainerUrl().equals(requestingNodeUrl))
-            .toList();
-
-        // Step 2: If more than 2 nodes remain, limit the list to 2 nodes
-        if (availableNodes.size() > 2) {
-            availableNodes = availableNodes.subList(0, 2);
-        }
-
-        logger.info("Available nodes after filtering and limiting: {}", availableNodes);
-        return availableNodes;
-    }
-
-
-    public List<DfsNode> getRegisteredNodes() {
-        return new ArrayList<DfsNode>(registeredNodes.values());
-    }
 
     public List<String> getNodeFiles(String nodeUrl) {
-        NodeFileMapping nodeFileMapping = nodeFileMappingRepo.findById(nodeUrl).orElse(new NodeFileMapping());
-        List<String> files = new ArrayList<>(nodeFileMapping.getFilenames());
-        return files;
+        NodeFileMapping nodeFileMapping = nodeFileMappingRepo.findByNodeUrl(nodeUrl).orElse(new NodeFileMapping());
+        return new ArrayList<>(nodeFileMapping.getFilenames());
     }
 
     public void clearCache() {
@@ -155,81 +81,12 @@ public class MetaNodeService {
         logger.info("Cache cleared.");
     }
 
-    public void clearRegisteredNodes() {
-        registeredNodes.clear();
-        logger.info("Registered nodes cleared.");
+    public List<String> getFileNodeMapping(String filename) {
+        FileNodeMapping fnmap = fileNodeMappingRepo.findByFilename(filename).orElse(new FileNodeMapping());
+        return new ArrayList<>(fnmap.getNodeUrls());
     }
 
-	public List<String> getFileNodeMapping(String filename) {
-		FileNodeMapping fnmap = fileNodeMappingRepo.findByFilename(filename);
-		if (fnmap==null) {
-			return null;
-		}
-		return new ArrayList<String>(fnmap.getNodeUrls());
-	}
-	
     public DfsNode selectNodeForUpload() {
-        if (registeredNodes.isEmpty()) {
-            return null;
-        }
-
-        List<DfsNode> nodeList = new ArrayList<>(registeredNodes.values());        
-        DfsNode selectedNode = nodeList.get(currentNodeIndex);
-
-        // Update currentNodeIndex based on the total weight
-        currentNodeIndex = (currentNodeIndex + 1) % nodeList.size();
-
-        return selectedNode;
-    }
-    
-    // Scheduled task to check health status periodically
-    //@Scheduled(fixedRate = "${dfs.healthcheck.rate:30000}") // Every 30 seconds
-    @Scheduled(fixedRateString = "${dfs.metanode.healthcheck.rate:3000}") // Use the injected property with a default
-    public void checkNodeHealth() {
-        Date now = new Date(); // Use Date instead of LocalDateTime
-        logger.info("Starting health check for registered nodes at {}.", now);
-
-        registeredNodes.forEach((containerUrl, node) -> {
-            long secondsSinceLastReport = (now.getTime() - node.getLastTimeReport().getTime()) / 1000; // Calculate seconds since last report
-            logger.info("Checking node({}) - Last report: {} seconds ago, expected threshold: {}", 
-                        node.getContainerUrl(), secondsSinceLastReport, WARNING_THRESHOLD);
-
-            if (secondsSinceLastReport > HEALTH_CHECK_THRESHOLD) {
-                logger.info("The node({}) is down. Moving to deadNodes from registered nodes.", node.getContainerUrl());
-                deadNodes.put(node.getContainerUrl(), node); //deadNodes can be construct from nodeFIlesMapping and registeredNodes, after crash, so don't need to persist it.
-                registeredNodes.remove(containerUrl);
-                executorService.submit(() -> handleDeadNode(node));
-                
-                
-            } else if (secondsSinceLastReport > WARNING_THRESHOLD) {
-            	
-                node.updateHealthStatus(HealthStatus.WARNING);
-                logger.info("Warning: node({}) has not reported for {} seconds. Status updated to WARNING.", 
-                            node.getContainerUrl(), secondsSinceLastReport);
-                
-            } else {
-                node.updateHealthStatus(HealthStatus.HEALTHY);
-                logger.info("Node({}) is healthy. Status remains HEALTHY.", node.getContainerUrl());
-            }
-        });
-
-        logger.info("Health check completed at {}. Total nodes monitored: {}.", now, registeredNodes.size());
-    }
-    
-    private void handleDeadNode(DfsNode deadNode) {
-        // Implement the logic for handling the dead node
-        // For example, notify other nodes, attempt to re-register, etc.
-
-        // Wait for a specific duration before retrying health check
-        try {
-            Thread.sleep(30000); // Wait for 30 seconds
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); // Restore interrupt status
-        }
-
-
-        // If the node is still down, implement additional logic
-        // for replication or removal from the cluster
-        // e.g., trigger replication process for under-replicated blocks
+        return nodeManager.selectNodeForUpload();  // Delegate node selection to NodeManager
     }
 }

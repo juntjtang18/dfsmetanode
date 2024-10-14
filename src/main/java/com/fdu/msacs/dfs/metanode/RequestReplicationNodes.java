@@ -4,7 +4,16 @@ public class RequestReplicationNodes {
     private String filename;
     private String requestingNodeUrl;
 
-    // Getters and Setters
+    public RequestReplicationNodes() {
+    	this.filename = "";
+    	this.requestingNodeUrl = "";
+    }
+    public RequestReplicationNodes(String filename, String containerUrl) {
+		this.filename = filename;
+		this.requestingNodeUrl = containerUrl;
+	}
+
+	// Getters and Setters
     public String getFilename() {
         return filename;
     }

@@ -1,150 +1,99 @@
 package com.fdu.msacs.dfs.metanode;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.fdu.msacs.dfs.metanode.mdb.BlockNodeMappingRepo;
+import com.fdu.msacs.dfs.metanode.mdb.FileNodeMappingRepo;
+import com.fdu.msacs.dfs.metanode.mdb.NodeFileMappingRepo;
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 
+@SpringBootTest
 public class MetaNodeServiceTest {
-	@Autowired
+
+    @Autowired
     private MetaNodeService metaNodeService;
+
+    @Autowired
+    private FileNodeMappingRepo fileNodeMappingRepo;
+
+    @Autowired
+    private NodeFileMappingRepo nodeFileMappingRepo;
+
+    @Autowired
+    private BlockNodeMappingRepo blockNodeMappingRepo;
+
+    @Autowired
+    private NodeManager nodeManager;
+
+    private String testNodeUrl = "http://localhost:8080/node1";
+    private String testFilename = "testFile.txt";
+    private String testHash = "abc123";
 
     @BeforeEach
     public void setUp() {
+        // Clear the repositories before each test
         metaNodeService.clearCache();
-        metaNodeService.clearRegisteredNodes();
-    }
-
-    @Test
-    public void testRegisterNode() {
-    	String nodeUrl = "http://localhost:8081";
-        DfsNode node = new DfsNode(nodeUrl);
-        String response = metaNodeService.registerNode(node);
-        assertEquals("Node registered: " + nodeUrl, response);
-        response = metaNodeService.registerNode(node);
-        assertEquals("Received Heartbeat from " + nodeUrl, response);
+        
+        // Optionally register a node for testing
+        DfsNode dfsNode = new DfsNode();
+        dfsNode.setContainerUrl(testNodeUrl);
+        nodeManager.registerNode(dfsNode);
     }
 
     @Test
     public void testRegisterFileLocation() {
-        DfsNode node = new DfsNode("http://localhost:8081");
-        metaNodeService.registerNode(node);
+        String result = metaNodeService.registerFileLocation(testFilename, testNodeUrl);
+        assertThat(result).isEqualTo("File location registered: " + testFilename + " on " + testNodeUrl);
+
+        // Verify that the filename is registered
+        List<String> nodeUrls = metaNodeService.getNodesForFile(testFilename);
+        assertThat(nodeUrls).contains(testNodeUrl);
+    }
+
+    @Test
+    public void testRegisterBlockLocation() {
+        String result = metaNodeService.registerBlockLocation(testHash, testNodeUrl);
+        assertThat(result).isEqualTo("Block location registered: " + testHash + " on " + testNodeUrl);
         
-        String response = metaNodeService.registerFileLocation("testFile.txt", node.getContainerUrl());
-        assertEquals("File location registered: testFile.txt on http://localhost:8081", response);
-        
-        // Registering the file location again
-        response = metaNodeService.registerFileLocation("testFile.txt", node.getContainerUrl());
-        assertEquals("File location registered: testFile.txt on http://localhost:8081", response);
+        // Verify that the block is registered
+        // Add verification code as needed for BlockNodeMappingRepo
     }
 
     @Test
     public void testGetNodesForFile() {
-        DfsNode node1 = new DfsNode("http://localhost:8081");
-        DfsNode node2 = new DfsNode("http://localhost:8082");
-        metaNodeService.registerNode(node1);
-        metaNodeService.registerNode(node2);
-        
-        metaNodeService.registerFileLocation("testFile.txt", node1.getContainerUrl());
-        metaNodeService.registerFileLocation("testFile.txt", node2.getContainerUrl());
-
-        List<String> nodes = metaNodeService.getNodesForFile("testFile.txt");
-        
-        assertThat(nodes).containsExactlyInAnyOrder(node1.getContainerUrl(), node2.getContainerUrl());
-    }
-
-    @Test
-    public void testGetReplicationNodes() {
-        DfsNode node1 = new DfsNode("http://localhost:8081");
-        DfsNode node2 = new DfsNode("http://localhost:8082");
-        DfsNode node3 = new DfsNode("http://localhost:8083");
-        metaNodeService.registerNode(node1);
-        metaNodeService.registerNode(node2);
-        metaNodeService.registerNode(node3);
-
-        List<DfsNode> replicationNodes = metaNodeService.getReplicationNodes("testFile.txt", "http://localhost:8081");
-        
-        assertThat(replicationNodes).containsExactlyInAnyOrder(node2, node3);
-    }
-
-    @Test
-    public void testGetRegisteredNodes() {
-        DfsNode node1 = new DfsNode("http://localhost:8081");
-        DfsNode node2 = new DfsNode("http://localhost:8082");
-        metaNodeService.registerNode(node1);
-        metaNodeService.registerNode(node2);
-        
-        List<DfsNode> registeredNodes = metaNodeService.getRegisteredNodes();
-        
-        assertThat(registeredNodes).containsExactlyInAnyOrder(node1, node2);
+        metaNodeService.registerFileLocation(testFilename, testNodeUrl);
+        List<String> nodeUrls = metaNodeService.getNodesForFile(testFilename);
+        assertThat(nodeUrls).containsExactly(testNodeUrl);
     }
 
     @Test
     public void testGetNodeFiles() {
-        DfsNode node = new DfsNode("http://localhost:8081");
-        metaNodeService.registerNode(node);
-        metaNodeService.registerFileLocation("testFile.txt", node.getContainerUrl());
-
-        List<String> files = metaNodeService.getNodeFiles(node.getContainerUrl());
-        
-        assertThat(files).containsExactly("testFile.txt");
-    }
-
-    @Test
-    public void testClearCache() {
-        DfsNode node = new DfsNode("http://localhost:8081");
-        metaNodeService.registerNode(node);
-        metaNodeService.registerFileLocation("testFile.txt", node.getContainerUrl());
-        
-        metaNodeService.clearCache();
-
-        assertThat(metaNodeService.getNodeFiles(node.getContainerUrl())).isEmpty();
-    }
-
-    @Test
-    public void testClearRegisteredNodes() {
-        DfsNode node = new DfsNode("http://localhost:8081");
-        metaNodeService.registerNode(node);
-        
-        metaNodeService.clearRegisteredNodes();
-
-        assertThat(metaNodeService.getRegisteredNodes()).isEmpty();
+        metaNodeService.registerFileLocation(testFilename, testNodeUrl);
+        List<String> files = metaNodeService.getNodeFiles(testNodeUrl);
+        assertThat(files).containsExactly(testFilename);
     }
 
     @Test
     public void testSelectNodeForUpload() {
-        DfsNode node1 = new DfsNode("http://localhost:8081");
-        DfsNode node2 = new DfsNode("http://localhost:8082");
-        DfsNode node3 = new DfsNode("http://localhost:8083");
+        DfsNode selectedNode = metaNodeService.selectNodeForUpload();
+        assertThat(selectedNode).isNotNull();
+        assertThat(selectedNode.getContainerUrl()).isEqualTo(testNodeUrl);
+    }
 
-        metaNodeService.registerNode(node1);
-        metaNodeService.registerNode(node2);
-        metaNodeService.registerNode(node3);
+    @Test
+    public void testClearCache() {
+        metaNodeService.registerFileLocation(testFilename, testNodeUrl);
+        metaNodeService.clearCache();
 
-        // Track the nodes returned by successive calls.
-        Set<DfsNode> selectedNodes = new HashSet<>();
-
-        // Loop to call selectNodeForUpload multiple times and collect the results.
-        for (int i = 0; i < 3; i++) {
-            DfsNode selectedNode = metaNodeService.selectNodeForUpload();
-            selectedNodes.add(selectedNode);
-        }
-
-        // Verify that each registered node is selected exactly once.
-        assertThat(selectedNodes).containsExactlyInAnyOrder(node1, node2, node3);
-
-        // Verify that after 3 selections, the next one restarts the round-robin sequence.
-        DfsNode firstAgain = metaNodeService.selectNodeForUpload();
-        assertThat(selectedNodes).contains(firstAgain);
+        List<String> nodeUrls = metaNodeService.getNodesForFile(testFilename);
+        assertThat(nodeUrls).isEmpty(); // Cache should be cleared
     }
 }

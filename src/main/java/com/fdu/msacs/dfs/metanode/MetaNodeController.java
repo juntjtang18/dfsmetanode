@@ -1,7 +1,6 @@
 package com.fdu.msacs.dfs.metanode;
 
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,17 +18,20 @@ public class MetaNodeController {
     private static final Logger logger = LoggerFactory.getLogger(MetaNodeController.class);
 
     private final MetaNodeService metaNodeService;
-
-    public MetaNodeController(MetaNodeService metaNodeService) {
-        this.metaNodeService = metaNodeService;
-    }
     
+    private final NodeManager nodeManager; // Reference to the NodeManager for node management
+
+    public MetaNodeController(MetaNodeService metaNodeService, NodeManager nodeManager) {
+        this.metaNodeService = metaNodeService;
+        this.nodeManager = nodeManager;
+    }
+
     @PostMapping("/metadata/register-node")
     public ResponseEntity<String> registerNode(@RequestBody DfsNode dfsNode) {
-        String response = metaNodeService.registerNode(dfsNode);
+        String response = nodeManager.registerNode(dfsNode); // Delegate registration to NodeManager
         return ResponseEntity.ok(response);
     }
-    
+
     @PostMapping("/metadata/register-file-location")
     public ResponseEntity<String> registerFileLocation(@RequestBody RequestFileLocation request) {
         String filename = request.getFilename();
@@ -37,10 +39,10 @@ public class MetaNodeController {
         String response = metaNodeService.registerFileLocation(filename, nodeUrl);
         return ResponseEntity.ok(response);
     }
-    
+
     @PostMapping("/metadata/register-block-location")
     public ResponseEntity<String> registerBlockLocation(@RequestBody RequestBlockNode request) {
-    	logger.info("/metadata/register-block-location requested with: {}->{}", request.hash, request.nodeUrl);
+        logger.info("/metadata/register-block-location requested with: {}->{}", request.hash, request.nodeUrl);
         String hash = request.hash;
         String nodeUrl = request.nodeUrl;
         String response = metaNodeService.registerBlockLocation(hash, nodeUrl);
@@ -49,16 +51,16 @@ public class MetaNodeController {
 
     @PostMapping("/metadata/get-replication-nodes")
     public ResponseEntity<List<DfsNode>> getReplicationNodes(@RequestBody RequestReplicationNodes request) {
-        List<DfsNode> replicationNodes = metaNodeService.getReplicationNodes(request.getFilename(), request.getRequestingNodeUrl());
+        List<DfsNode> replicationNodes = nodeManager.getReplicationNodes(request.getFilename(), request.getRequestingNodeUrl());
         return ResponseEntity.ok(replicationNodes);
     }
 
     @GetMapping("/metadata/get-registered-nodes")
     public ResponseEntity<List<DfsNode>> getRegisteredNodes() {
-        List<DfsNode> registeredNodes = metaNodeService.getRegisteredNodes();
+        List<DfsNode> registeredNodes = nodeManager.getRegisteredNodes(); // Delegate retrieval to NodeManager
         return ResponseEntity.ok(registeredNodes);
     }
-    
+
     @GetMapping("/metadata/nodes-for-file/{filename}")
     public ResponseEntity<List<String>> getNodesForFile(@PathVariable String filename) {
         List<String> nodeAddresses = metaNodeService.getNodesForFile(filename);
@@ -70,14 +72,14 @@ public class MetaNodeController {
         List<String> files = metaNodeService.getNodeFiles(request.getNodeUrl());
         return ResponseEntity.ok(files);
     }
-    
+
     @GetMapping("/metadata/get-file-node-mapping/{filename}")
     public ResponseEntity<List<String>> getFileNodeMapping(@PathVariable String filename) {
         List<String> nodes = metaNodeService.getFileNodeMapping(filename);
         return ResponseEntity.ok(nodes);
     }
 
-    //Test utility end point
+    // Test utility end point
     @PostMapping("/metadata/clear-cache")
     public ResponseEntity<String> clearCache() {
         metaNodeService.clearCache(); // Clear all file-node mappings
@@ -86,14 +88,14 @@ public class MetaNodeController {
 
     @PostMapping("/metadata/clear-registered-nodes")
     public ResponseEntity<String> clearRegisteredNodes() {
-        metaNodeService.clearRegisteredNodes(); // Clear all registered nodes
+        nodeManager.clearRegisteredNodes(); // Clear all registered nodes through NodeManager
         return ResponseEntity.ok("Registered nodes cleared.");
     }
 
     @GetMapping("/metadata/upload-url")
     public String getUploadUrl() {
         // Select a node using Weighted Round Robin
-        DfsNode selectedNode = metaNodeService.selectNodeForUpload();
+        DfsNode selectedNode = nodeManager.selectNodeForUpload();
         if (selectedNode == null) {
             logger.error("No registered nodes available for upload.");
             return "No registered nodes available for upload.";
@@ -110,5 +112,5 @@ public class MetaNodeController {
     @GetMapping("/metadata/pingsvr")
     public String pingSvr() {
         return "Metadata Server is running...";
-    }    
+    }
 }
