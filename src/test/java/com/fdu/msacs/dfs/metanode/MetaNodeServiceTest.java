@@ -11,6 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+
+import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 
 public class MetaNodeServiceTest {
@@ -25,14 +27,12 @@ public class MetaNodeServiceTest {
 
     @Test
     public void testRegisterNode() {
-        DfsNode node = new DfsNode("http://localhost:8081");
+    	String nodeUrl = "http://localhost:8081";
+        DfsNode node = new DfsNode(nodeUrl);
         String response = metaNodeService.registerNode(node);
-        
-        assertEquals("Node registered: http://localhost:8081", response);
-        
-        // Registering the same node again
+        assertEquals("Node registered: " + nodeUrl, response);
         response = metaNodeService.registerNode(node);
-        assertEquals("Node already registered: http://localhost:8081", response);
+        assertEquals("Received Heartbeat from " + nodeUrl, response);
     }
 
     @Test

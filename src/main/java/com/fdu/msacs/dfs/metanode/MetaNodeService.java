@@ -1,47 +1,61 @@
 package com.fdu.msacs.dfs.metanode;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
 import com.fdu.msacs.dfs.metanode.mdb.BlockNodeMappingRepo;
+import com.fdu.msacs.dfs.metanode.meta.DfsNode;
+import com.fdu.msacs.dfs.metanode.meta.DfsNode.HealthStatus;
 
 @Service
 public class MetaNodeService {
     private static final Logger logger = LoggerFactory.getLogger(MetaNodeService.class);
     
-    private Map<String, Set<String>> fileNodeMapping;
-    private Map<String, Set<String>> nodeFileMapping;
-    private Map<String, DfsNode> registeredNodes;
+    private ConcurrentHashMap<String, Set<String>> fileNodeMapping;
+    private ConcurrentHashMap<String, Set<String>> nodeFileMapping;
+    private ConcurrentHashMap<String, DfsNode> registeredNodes;
     private int currentNodeIndex = 0;
     private BlockNodeMappingRepo blockNodeMapping;
     
+    @Value("${dfs.metanode.healthcheck.down_threshold:6}") int HEALTH_CHECK_THRESHOLD; // seconds
+    @Value("${dfs.metanode.healthcheck.warning_threshold:3}") int WARNING_THRESHOLD; // seconds before downgrading to WARNING
+
     public MetaNodeService(BlockNodeMappingRepo blockNodeMapping) {
-    	this.fileNodeMapping = new HashMap<String, Set<String>>();
-    	this.nodeFileMapping = new HashMap<String, Set<String>>();
-    	this.registeredNodes = new HashMap<String, DfsNode>();
+    	this.fileNodeMapping = new ConcurrentHashMap<String, Set<String>>();
+    	this.nodeFileMapping = new ConcurrentHashMap<String, Set<String>>();
+    	this.registeredNodes = new ConcurrentHashMap<String, DfsNode>();
     	this.blockNodeMapping = blockNodeMapping;
     }
     
     public String registerNode(DfsNode node) {
-    	String nodeUrl = node.getContainerUrl();
-        if (registeredNodes.get(nodeUrl) == null) {
+        String nodeUrl = node.getContainerUrl();
+        DfsNode existingNode = registeredNodes.get(nodeUrl);
+
+        if (existingNode == null) {
             registeredNodes.put(nodeUrl, node);            
             logger.info("A new node registered: {}", nodeUrl);
             return "Node registered: " + nodeUrl;
         } else {
-            logger.warn("Node already registered: {}", nodeUrl);
-            return "Node already registered: " + nodeUrl; // Conflict status
+            existingNode.setHealthStatus(HealthStatus.HEALTHY);
+            existingNode.setLastTimeReport(new Date()); // Update last report time using Date
+            logger.info("Node heartbeat listened from: {}", nodeUrl);
+            return "Received Heartbeat from " + nodeUrl;
         }
     }
 
+    
     public String registerFileLocation(String filename, String nodeUrl) {
         // Update or create the FileNode entry
         Set<String> nodeList = fileNodeMapping.get(filename);
@@ -142,5 +156,35 @@ public class MetaNodeService {
 
         return selectedNode;
     }
+    
+    // Scheduled task to check health status periodically
+    //@Scheduled(fixedRate = "${dfs.healthcheck.rate:30000}") // Every 30 seconds
+    @Scheduled(fixedRateString = "${dfs.metanode.healthcheck.rate:3000}") // Use the injected property with a default
+    public void checkNodeHealth() {
+        Date now = new Date(); // Use Date instead of LocalDateTime
+        logger.info("Starting health check for registered nodes at {}.", now);
 
+        registeredNodes.forEach((containerUrl, node) -> {
+            long secondsSinceLastReport = (now.getTime() - node.getLastTimeReport().getTime()) / 1000; // Calculate seconds since last report
+            logger.info("Checking node({}) - Last report: {} seconds ago, expected threshold: {}", 
+                        node.getContainerUrl(), secondsSinceLastReport, WARNING_THRESHOLD);
+
+            if (secondsSinceLastReport > HEALTH_CHECK_THRESHOLD) {
+                logger.info("The node({}) is down. Removing from registered nodes.", node.getContainerUrl());
+                registeredNodes.remove(containerUrl);
+                
+            } else if (secondsSinceLastReport > WARNING_THRESHOLD) {
+            	
+                node.updateHealthStatus(HealthStatus.WARNING);
+                logger.info("Warning: node({}) has not reported for {} seconds. Status updated to WARNING.", 
+                            node.getContainerUrl(), secondsSinceLastReport);
+                
+            } else {
+                node.updateHealthStatus(HealthStatus.HEALTHY);
+                logger.info("Node({}) is healthy. Status remains HEALTHY.", node.getContainerUrl());
+            }
+        });
+
+        logger.info("Health check completed at {}. Total nodes monitored: {}.", now, registeredNodes.size());
+    }
 }

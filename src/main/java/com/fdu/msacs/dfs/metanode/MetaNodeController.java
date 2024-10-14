@@ -1,6 +1,8 @@
 package com.fdu.msacs.dfs.metanode;
 
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +11,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 
 @RestController
 public class MetaNodeController {
@@ -23,13 +27,9 @@ public class MetaNodeController {
     @PostMapping("/metadata/register-node")
     public ResponseEntity<String> registerNode(@RequestBody DfsNode dfsNode) {
         String response = metaNodeService.registerNode(dfsNode);
-
-        if (response.contains("already registered")) {
-            return ResponseEntity.status(200).body(response); // Conflict status
-        }
         return ResponseEntity.ok(response);
     }
-
+    
     @PostMapping("/metadata/register-file-location")
     public ResponseEntity<String> registerFileLocation(@RequestBody RequestFileLocation request) {
         String filename = request.getFilename();
@@ -110,5 +110,5 @@ public class MetaNodeController {
     @GetMapping("/metadata/pingsvr")
     public String pingSvr() {
         return "Metadata Server is running...";
-    }
+    }    
 }

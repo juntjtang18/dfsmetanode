@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fdu.msacs.dfs.metanode.RequestFileLocation;
 import com.fdu.msacs.dfs.metanode.RequestNode;
 import com.fdu.msacs.dfs.metanode.RequestReplicationNodes;
+import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
