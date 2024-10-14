@@ -1,11 +1,8 @@
 package com.fdu.msacs.dfs.metanode;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -16,6 +13,10 @@ import org.springframework.stereotype.Service;
 
 import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
 import com.fdu.msacs.dfs.metanode.mdb.BlockNodeMappingRepo;
+import com.fdu.msacs.dfs.metanode.mdb.FileNodeMapping;
+import com.fdu.msacs.dfs.metanode.mdb.FileNodeMappingRepo;
+import com.fdu.msacs.dfs.metanode.mdb.NodeFileMapping;
+import com.fdu.msacs.dfs.metanode.mdb.NodeFileMappingRepo;
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 import com.fdu.msacs.dfs.metanode.meta.DfsNode.HealthStatus;
 
@@ -23,8 +24,8 @@ import com.fdu.msacs.dfs.metanode.meta.DfsNode.HealthStatus;
 public class MetaNodeService {
     private static final Logger logger = LoggerFactory.getLogger(MetaNodeService.class);
     
-    private ConcurrentHashMap<String, Set<String>> fileNodeMapping;
-    private ConcurrentHashMap<String, Set<String>> nodeFileMapping;
+    private FileNodeMappingRepo fileNodeMappingRepo;
+    private NodeFileMappingRepo nodeFileMappingRepo;
     private ConcurrentHashMap<String, DfsNode> registeredNodes;
     private int currentNodeIndex = 0;
     private BlockNodeMappingRepo blockNodeMapping;
@@ -32,12 +33,15 @@ public class MetaNodeService {
     @Value("${dfs.metanode.healthcheck.down_threshold:6}") int HEALTH_CHECK_THRESHOLD; // seconds
     @Value("${dfs.metanode.healthcheck.warning_threshold:3}") int WARNING_THRESHOLD; // seconds before downgrading to WARNING
 
-    public MetaNodeService(BlockNodeMappingRepo blockNodeMapping) {
-    	this.fileNodeMapping = new ConcurrentHashMap<String, Set<String>>();
-    	this.nodeFileMapping = new ConcurrentHashMap<String, Set<String>>();
-    	this.registeredNodes = new ConcurrentHashMap<String, DfsNode>();
-    	this.blockNodeMapping = blockNodeMapping;
-    }
+    public MetaNodeService(BlockNodeMappingRepo blockNodeMapping,
+					        FileNodeMappingRepo fileNodeMappingRepo,
+					        NodeFileMappingRepo nodeFileMappingRepo) 
+    {
+		this.registeredNodes = new ConcurrentHashMap<>();
+		this.blockNodeMapping = blockNodeMapping;
+		this.fileNodeMappingRepo = fileNodeMappingRepo;
+		this.nodeFileMappingRepo = nodeFileMappingRepo;
+	}
     
     public String registerNode(DfsNode node) {
         String nodeUrl = node.getContainerUrl();
@@ -58,23 +62,21 @@ public class MetaNodeService {
     
     public String registerFileLocation(String filename, String nodeUrl) {
         // Update or create the FileNode entry
-        Set<String> nodeList = fileNodeMapping.get(filename);
-        if (nodeList==null) {
-        	nodeList = new HashSet<String>();
-        	fileNodeMapping.put(filename, nodeList);
-        }
-        nodeList.add(nodeUrl);
-        
-        Set<String> fileList = nodeFileMapping.get(nodeUrl);
-        if (fileList==null) {
-        	fileList = new HashSet<String>();
-        	nodeFileMapping.put(nodeUrl, fileList);
-        }
-        fileList.add(filename);
-        
+        FileNodeMapping fileNodeMapping = fileNodeMappingRepo.findById(filename)
+                .orElse(new FileNodeMapping(filename));
+        fileNodeMapping.getNodeUrls().add(nodeUrl);
+        fileNodeMappingRepo.save(fileNodeMapping);
+
+        // Update or create the NodeFile entry
+        NodeFileMapping nodeFileMapping = nodeFileMappingRepo.findById(nodeUrl)
+                .orElse(new NodeFileMapping(nodeUrl));
+        nodeFileMapping.getFilenames().add(filename);
+        nodeFileMappingRepo.save(nodeFileMapping);
+
         logger.info("File {} registered to : {}", filename, nodeUrl);
         return "File location registered: " + filename + " on " + nodeUrl;
     }
+
     
     public String registerBlockLocation(String hash, String nodeUrl) {
 		logger.debug("MetaService: registerBlockLocation: {}->{}", hash, nodeUrl);
@@ -92,12 +94,11 @@ public class MetaNodeService {
     }
 
     public List<String> getNodesForFile(String filename) {
-        Set<String> nodes = fileNodeMapping.getOrDefault(filename, new HashSet<String>());
-        List<String> nodeUrls = new ArrayList<>(nodes);
+        FileNodeMapping fileNodeMapping = fileNodeMappingRepo.findById(filename).orElse(new FileNodeMapping());
+        List<String> nodeUrls = new ArrayList<>(fileNodeMapping.getNodeUrls());
         logger.info("Searching the node for file {}, return {}", filename, nodeUrls);
         return nodeUrls;
     }
-
     
     public List<DfsNode> getReplicationNodes(String filename, String requestingNodeUrl) {
         logger.info("/metadata/get-replication-nodes called for filename: {} and requestingNodeUrl: {}", filename, requestingNodeUrl);
@@ -122,14 +123,14 @@ public class MetaNodeService {
     }
 
     public List<String> getNodeFiles(String nodeUrl) {
-    	Set<String> files = nodeFileMapping.getOrDefault(nodeUrl, new HashSet<String>());
-        return new ArrayList<String>(files);
+        NodeFileMapping nodeFileMapping = nodeFileMappingRepo.findById(nodeUrl).orElse(new NodeFileMapping());
+        List<String> files = new ArrayList<>(nodeFileMapping.getFilenames());
+        return files;
     }
 
     public void clearCache() {
-        fileNodeMapping.clear();
-        nodeFileMapping.clear();
-        
+        fileNodeMappingRepo.deleteAll();
+        nodeFileMappingRepo.deleteAll();
         logger.info("Cache cleared.");
     }
 
@@ -138,9 +139,12 @@ public class MetaNodeService {
         logger.info("Registered nodes cleared.");
     }
 
-	public List<String> getFileNodes(String filename) {
-		Set<String> nodes = fileNodeMapping.getOrDefault(filename, new HashSet<String>());
-		return new ArrayList<String>(nodes);
+	public List<String> getFileNodeMapping(String filename) {
+		FileNodeMapping fnmap = fileNodeMappingRepo.findByFilename(filename);
+		if (fnmap==null) {
+			return null;
+		}
+		return new ArrayList<String>(fnmap.getNodeUrls());
 	}
 	
     public DfsNode selectNodeForUpload() {

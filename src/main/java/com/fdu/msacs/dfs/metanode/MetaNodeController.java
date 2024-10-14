@@ -73,7 +73,7 @@ public class MetaNodeController {
     
     @GetMapping("/metadata/get-file-node-mapping/{filename}")
     public ResponseEntity<List<String>> getFileNodeMapping(@PathVariable String filename) {
-        List<String> nodes = metaNodeService.getFileNodes(filename);
+        List<String> nodes = metaNodeService.getFileNodeMapping(filename);
         return ResponseEntity.ok(nodes);
     }
 
