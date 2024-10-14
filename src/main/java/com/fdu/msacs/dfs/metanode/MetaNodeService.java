@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +31,11 @@ public class MetaNodeService {
     private ConcurrentHashMap<String, DfsNode> registeredNodes;
     private int currentNodeIndex = 0;
     private BlockNodeMappingRepo blockNodeMapping;
+    private ConcurrentHashMap<String, DfsNode> deadNodes;
     
     @Value("${dfs.metanode.healthcheck.down_threshold:6}") int HEALTH_CHECK_THRESHOLD; // seconds
     @Value("${dfs.metanode.healthcheck.warning_threshold:3}") int WARNING_THRESHOLD; // seconds before downgrading to WARNING
+    private ExecutorService executorService; // Thread pool for handling dead nodes
 
     public MetaNodeService(BlockNodeMappingRepo blockNodeMapping,
 					        FileNodeMappingRepo fileNodeMappingRepo,
@@ -41,14 +45,30 @@ public class MetaNodeService {
 		this.blockNodeMapping = blockNodeMapping;
 		this.fileNodeMappingRepo = fileNodeMappingRepo;
 		this.nodeFileMappingRepo = nodeFileMappingRepo;
+		this.deadNodes = new ConcurrentHashMap<>();
+        executorService = Executors.newFixedThreadPool(10); // Set pool size based on expected load
 	}
     
     public String registerNode(DfsNode node) {
         String nodeUrl = node.getContainerUrl();
         DfsNode existingNode = registeredNodes.get(nodeUrl);
 
+        // Check if the node is in the deadNodes list
+        if (deadNodes.containsKey(nodeUrl)) {
+            // Remove from deadNodes and add to registeredNodes
+            deadNodes.remove(nodeUrl);
+            registeredNodes.put(nodeUrl, node);
+            
+            node.setHealthStatus(HealthStatus.HEALTHY);
+            node.setLastTimeReport(new Date());
+            
+            logger.info("A dead node revives: {}", nodeUrl);
+            return "A dead node revives: " + nodeUrl;
+        }
+
+        // If the node is not in the deadNodes list, proceed with normal registration or heartbeat update
         if (existingNode == null) {
-            registeredNodes.put(nodeUrl, node);            
+            registeredNodes.put(nodeUrl, node);
             logger.info("A new node registered: {}", nodeUrl);
             return "Node registered: " + nodeUrl;
         } else {
@@ -58,6 +78,7 @@ public class MetaNodeService {
             return "Received Heartbeat from " + nodeUrl;
         }
     }
+
 
     
     public String registerFileLocation(String filename, String nodeUrl) {
@@ -174,8 +195,11 @@ public class MetaNodeService {
                         node.getContainerUrl(), secondsSinceLastReport, WARNING_THRESHOLD);
 
             if (secondsSinceLastReport > HEALTH_CHECK_THRESHOLD) {
-                logger.info("The node({}) is down. Removing from registered nodes.", node.getContainerUrl());
+                logger.info("The node({}) is down. Moving to deadNodes from registered nodes.", node.getContainerUrl());
+                deadNodes.put(node.getContainerUrl(), node); //deadNodes can be construct from nodeFIlesMapping and registeredNodes, after crash, so don't need to persist it.
                 registeredNodes.remove(containerUrl);
+                executorService.submit(() -> handleDeadNode(node));
+                
                 
             } else if (secondsSinceLastReport > WARNING_THRESHOLD) {
             	
@@ -190,5 +214,22 @@ public class MetaNodeService {
         });
 
         logger.info("Health check completed at {}. Total nodes monitored: {}.", now, registeredNodes.size());
+    }
+    
+    private void handleDeadNode(DfsNode deadNode) {
+        // Implement the logic for handling the dead node
+        // For example, notify other nodes, attempt to re-register, etc.
+
+        // Wait for a specific duration before retrying health check
+        try {
+            Thread.sleep(30000); // Wait for 30 seconds
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // Restore interrupt status
+        }
+
+
+        // If the node is still down, implement additional logic
+        // for replication or removal from the cluster
+        // e.g., trigger replication process for under-replicated blocks
     }
 }
