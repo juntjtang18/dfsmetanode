@@ -2,6 +2,8 @@ package com.fdu.msacs.dfs.metanode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,4 +91,9 @@ public class MetaNodeService {
     public DfsNode selectNodeForUpload() {
         return nodeManager.selectNodeForUpload();  // Delegate node selection to NodeManager
     }
+
+	public boolean checkFileExists(String filename) {
+		Optional<FileNodeMapping> fnm = fileNodeMappingRepo.findByFilename(filename);
+		return !fnm.isEmpty();
+	}
 }

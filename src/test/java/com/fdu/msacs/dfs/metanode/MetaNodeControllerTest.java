@@ -1,5 +1,7 @@
 package com.fdu.msacs.dfs.metanode;
 
+import com.fdu.msacs.dfs.metanode.MetaNodeController.RequestUpload;
+import com.fdu.msacs.dfs.metanode.MetaNodeController.UploadResponse;
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -151,15 +153,28 @@ public class MetaNodeControllerTest {
 
     @Test
     public void testGetUploadUrl() {
-        DfsNode dfsNode1 = new DfsNode("http://node1", "http://localhost/node1");
-        DfsNode dfsNode2 = new DfsNode("http://node2", "http://localhost/node2");
+        // Create nodes with URLs for testing
+        DfsNode dfsNode1 = new DfsNode("http://node1", "http://localhost:8081");
+        DfsNode dfsNode2 = new DfsNode("http://node2", "http://localhost:8082");
 
-        // Register nodes using the utility method
+        // Register nodes using a utility method (assuming this is available)
         registerNode(dfsNode1);
         registerNode(dfsNode2);
-    	
-        ResponseEntity<String> response = restTemplate.getForEntity(baseUrl + "/upload-url", String.class);
+
+        // Create a RequestUpload object for testing
+        RequestUpload requestUpload = new RequestUpload("some-unique-uuid", "example.txt");
+
+        // Use restTemplate to send a POST request with the request body
+        ResponseEntity<UploadResponse> response = restTemplate.postForEntity(
+            baseUrl + "/upload-url",
+            requestUpload,
+            UploadResponse.class
+        );
+
+        // Validate the response
         assertEquals(200, response.getStatusCodeValue());
-        assertTrue(response.getBody().startsWith("http://")); // Check if the response starts with a valid URL
-    }
-}
+        UploadResponse responseBody = response.getBody();
+        assertNotNull(responseBody);
+        assertTrue(responseBody.getNodeUrl().startsWith("http://localhost"));
+        assertNotNull(responseBody.getNodeUrl());
+    }}
