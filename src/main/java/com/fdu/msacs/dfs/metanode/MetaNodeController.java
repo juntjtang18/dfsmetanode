@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,15 +21,10 @@ import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 @RestController
 public class MetaNodeController {
     private static final Logger logger = LoggerFactory.getLogger(MetaNodeController.class);
-
-    private final MetaNodeService metaNodeService;
-    
-    private final NodeManager nodeManager; // Reference to the NodeManager for node management
-
-    public MetaNodeController(MetaNodeService metaNodeService, NodeManager nodeManager) {
-        this.metaNodeService = metaNodeService;
-        this.nodeManager = nodeManager;
-    }
+    @Autowired
+    private MetaNodeService metaNodeService;
+    @Autowired
+    private NodeManager nodeManager; // Reference to the NodeManager for node management
 
     @PostMapping("/metadata/register-node")
     public ResponseEntity<String> registerNode(@RequestBody DfsNode dfsNode) {
@@ -41,15 +37,6 @@ public class MetaNodeController {
         String filename = request.getFilename();
         String nodeUrl = request.getNodeUrl();
         String response = metaNodeService.registerFileLocation(filename, nodeUrl);
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/metadata/register-block-location")
-    public ResponseEntity<String> registerBlockLocation(@RequestBody RequestBlockNode request) {
-        logger.info("/metadata/register-block-location requested with: {}->{}", request.hash, request.nodeUrl);
-        String hash = request.hash;
-        String nodeUrl = request.nodeUrl;
-        String response = metaNodeService.registerBlockLocation(hash, nodeUrl);
         return ResponseEntity.ok(response);
     }
 

@@ -4,18 +4,18 @@ import java.io.Serializable;
 import java.util.Objects;
 import java.util.Set;
 
-public class BackupFile implements Serializable {
+public class DfsFile implements Serializable {
     private static final long serialVersionUID = 1L; // Unique identifier for serialization
     private FileMeta fileMeta;                // File metadata
     private Set<String> blockHashes;     // Mapping of block hashes to block data
 
-    public BackupFile() {
+    public DfsFile() {
     	this.fileMeta = null;
     	this.blockHashes = null;
     }
     
     // Constructor
-    public BackupFile(FileMeta fileMeta, Set<String> blockMap) {
+    public DfsFile(FileMeta fileMeta, Set<String> blockMap) {
         this.fileMeta = fileMeta;
         this.blockHashes = blockMap;
     }
@@ -41,7 +41,7 @@ public class BackupFile implements Serializable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        BackupFile that = (BackupFile) o;
+        DfsFile that = (DfsFile) o;
         return Objects.equals(fileMeta, that.fileMeta) && Objects.equals(blockHashes, that.blockHashes);
     }
     

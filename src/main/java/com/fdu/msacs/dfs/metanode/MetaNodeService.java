@@ -27,10 +27,6 @@ public class MetaNodeService {
     @Autowired
     private NodeFileMappingRepo nodeFileMappingRepo;
     @Autowired
-    private BlockNodeMappingRepo blockNodeMappingRepo;
-    @Autowired
-    private FileRefManager fileRefManager;
-    @Autowired
     private NodeManager nodeManager;  // New NodeManager class for node management logic
 
     public String registerFileLocation(String filename, String nodeUrl) {
@@ -48,21 +44,6 @@ public class MetaNodeService {
 
         logger.info("File {} registered to : {}", filename, nodeUrl);
         return "File location registered: " + filename + " on " + nodeUrl;
-    }
-
-    public String registerBlockLocation(String hash, String nodeUrl) {
-        logger.debug("MetaService: registerBlockLocation: {}->{}", hash, nodeUrl);
-
-        BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
-        if (blockNode == null) {
-            blockNode = new BlockNode();
-            blockNode.setHash(hash);
-            blockNode.getNodeUrls().add(nodeUrl);
-        }
-        blockNodeMappingRepo.save(blockNode);
-        logger.debug("Block {} registered to : {}", hash, nodeUrl);
-        logger.debug("Current blockNodeMapping: {}", blockNodeMappingRepo.findAll());
-        return "Block location registered: " + hash + " on " + nodeUrl;
     }
 
     public List<String> getNodesForFile(String filename) {
@@ -96,4 +77,5 @@ public class MetaNodeService {
 		Optional<FileNodeMapping> fnm = fileNodeMappingRepo.findByFilename(filename);
 		return !fnm.isEmpty();
 	}
+	
 }

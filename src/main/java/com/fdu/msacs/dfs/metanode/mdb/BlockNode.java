@@ -10,16 +10,9 @@ import java.util.Set;
 @Document(collection = "block_node")
 public class BlockNode {
     @Id
-    private String id; // Auto-generated ID
     private String hash;
     private Set<String> nodeUrls = new HashSet<String>();
     
-	public String getId() {
-		return id;
-	}
-	public void setId(String id) {
-		this.id = id;
-	}
 	public String getHash() {
 		return hash;
 	}

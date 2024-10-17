@@ -3,9 +3,9 @@ package com.fdu.msacs.dfs.metanode;
 import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,7 +25,7 @@ import jakarta.annotation.PostConstruct;
 
 public class AppConfig {
     private static final Logger logger = LoggerFactory.getLogger(AppConfig.class);
-
+    
     @Value("${spring.data.mongodb.uri}")
     private String mongodbUri;
 

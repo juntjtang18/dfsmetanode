@@ -7,7 +7,9 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
+@Component
 public class FileRefManager {
     private final Path refRoot;
     @Autowired
@@ -19,12 +21,12 @@ public class FileRefManager {
     }
 
  // Method to save hash and BackupFile to a reference file
-    public String saveHashMapping(String hash, BackupFile backupFile) throws IOException {
+    public String saveHashMapping(String hash, DfsFile dfsFile) throws IOException {
         Path refFile = getFilePathFromHash(hash);  // Get the full path from hash
         Files.createDirectories(refFile.getParent());  // Create directory if it doesn't exist
 
         // Write the BackupFile to the reference file as JSON
-        objectMapper.writeValue(refFile.toFile(), backupFile);
+        objectMapper.writeValue(refFile.toFile(), dfsFile);
         return hash;
     }
     
@@ -43,12 +45,12 @@ public class FileRefManager {
     }
 
     // Method to check if a hash exists and retrieve the BackupFile
-    public Optional<BackupFile> readHashMapping(String hash) throws IOException {
+    public Optional<DfsFile> readHashMapping(String hash) throws IOException {
         Path refFile = getFilePathFromHash(hash);
 
         if (Files.exists(refFile)) {
             // Read the BackupFile from the reference file
-            BackupFile backupFile = objectMapper.readValue(refFile.toFile(), BackupFile.class);
+            DfsFile backupFile = objectMapper.readValue(refFile.toFile(), DfsFile.class);
             return Optional.of(backupFile);
         } else {
             return Optional.empty();  // Indicate that the hash does not exist
@@ -69,7 +71,7 @@ public class FileRefManager {
         Set<String> blocks = Set.of("block1", "block2", "block3");
         FileMeta fileMeta = new FileMeta("d:\\mybackupfiles\\a\\f.txt", 0, hash); // Initialize your FileMeta here
 
-        BackupFile backupFile = new BackupFile(fileMeta, blocks);
+        DfsFile backupFile = new DfsFile(fileMeta, blocks);
 
         try {
             // Save hash mapping
@@ -77,9 +79,9 @@ public class FileRefManager {
             System.out.println("Hash mapping saved successfully.");
 
             // Check hash mapping
-            Optional<BackupFile> result = manager.readHashMapping(hash);
+            Optional<DfsFile> result = manager.readHashMapping(hash);
             if (result.isPresent()) {
-                BackupFile retrievedBackupFile = result.get();
+                DfsFile retrievedBackupFile = result.get();
                 System.out.println("Backup File Metadata: " + retrievedBackupFile.getFileMeta());
                 System.out.println("Block Mapping: " + retrievedBackupFile.getBlockHashes());
             } else {

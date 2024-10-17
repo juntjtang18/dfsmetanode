@@ -31,7 +31,7 @@ class FileRefManagerTest {
         String hash = "abc123456789defabcd5678abcdef12";
         Set<String> blocks = Set.of("block1", "block2", "block3");
         FileMeta fileMeta = new FileMeta("d:\\mybackupfiles\\a\\f.txt", 12345, "2024-10-06T12:34:56Z");
-        BackupFile backupFile = new BackupFile(fileMeta, blocks);
+        DfsFile backupFile = new DfsFile(fileMeta, blocks);
 
         // Save hash mapping
         String returnedHash = fileRefManager.saveHashMapping(hash, backupFile);
@@ -46,7 +46,7 @@ class FileRefManagerTest {
         assertTrue(Files.exists(expectedPath));
 
         // Verify that the contents of the file are correct
-        BackupFile savedBackupFile = objectMapper.readValue(expectedPath.toFile(), BackupFile.class);
+        DfsFile savedBackupFile = objectMapper.readValue(expectedPath.toFile(), DfsFile.class);
         assertEquals(backupFile, savedBackupFile);
     }
 
@@ -55,17 +55,17 @@ class FileRefManagerTest {
         String hash = "abc123456789defabcd5678abcdef12";
         Set<String> blocks = Set.of("block1", "block2", "block3");
         FileMeta fileMeta = new FileMeta("d:\\mybackupfiles\\a\\f.txt", 12345, "2024-10-06T12:34:56Z");
-        BackupFile backupFile = new BackupFile(fileMeta, blocks);
+        DfsFile backupFile = new DfsFile(fileMeta, blocks);
 
         // Save the hash mapping first
         fileRefManager.saveHashMapping(hash, backupFile);
 
         // Check if the hash mapping exists
-        Optional<BackupFile> result = fileRefManager.readHashMapping(hash);
+        Optional<DfsFile> result = fileRefManager.readHashMapping(hash);
         assertTrue(result.isPresent());
 
         // Verify the retrieved content
-        BackupFile retrievedBackupFile = result.get();
+        DfsFile retrievedBackupFile = result.get();
         assertEquals(backupFile, retrievedBackupFile);
     }
 
@@ -74,7 +74,7 @@ class FileRefManagerTest {
         String hash = "abc123456789defabcd5678abcdef12";
         Set<String> blocks = Set.of("block1", "block2", "block3");
         FileMeta fileMeta = new FileMeta("d:\\mybackupfiles\\a\\f.txt", 12345, "2024-10-06T12:34:56Z");
-        BackupFile backupFile = new BackupFile(fileMeta, blocks);
+        DfsFile backupFile = new DfsFile(fileMeta, blocks);
 
         // Save the hash mapping first
         fileRefManager.saveHashMapping(hash, backupFile);

@@ -75,17 +75,6 @@ public class MetaNodeControllerTest {
     }
 
     @Test
-    public void testRegisterBlockLocation() {
-        DfsNode dfsNode = new DfsNode("http://node1", "http://localhost/node1");
-        registerNode(dfsNode); // Register node first
-
-        //RequestBlockNode request = new RequestBlockNode("hash123", "http://node1");
-        //ResponseEntity<String> response = restTemplate.postForEntity(baseUrl + "/register-block-location", request, String.class);
-        //assertEquals(200, response.getStatusCodeValue());
-        //assertEquals("Block location registered successfully", response.getBody());
-    }
-
-    @Test
     public void testGetRegisteredNodes() {
         DfsNode dfsNode1 = new DfsNode("http://node1", "http://localhost/node1");
         DfsNode dfsNode2 = new DfsNode("http://node2", "http://localhost/node2");

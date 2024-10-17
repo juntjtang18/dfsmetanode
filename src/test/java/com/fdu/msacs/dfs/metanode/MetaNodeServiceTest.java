@@ -59,15 +59,6 @@ public class MetaNodeServiceTest {
     }
 
     @Test
-    public void testRegisterBlockLocation() {
-        String result = metaNodeService.registerBlockLocation(testHash, testNodeUrl);
-        assertThat(result).isEqualTo("Block location registered: " + testHash + " on " + testNodeUrl);
-        
-        // Verify that the block is registered
-        // Add verification code as needed for BlockNodeMappingRepo
-    }
-
-    @Test
     public void testGetNodesForFile() {
         metaNodeService.registerFileLocation(testFilename, testNodeUrl);
         List<String> nodeUrls = metaNodeService.getNodesForFile(testFilename);
