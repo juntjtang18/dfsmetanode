@@ -6,16 +6,32 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
 import com.fdu.msacs.dfs.metanode.mdb.BlockNodeMappingRepo;
+import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 
+import jakarta.annotation.PostConstruct;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Service
 public class BlockMetaService {
     private static final Logger logger = LoggerFactory.getLogger(BlockMetaService.class);
-    
+    @Autowired
+    private AppConfig config;
     @Autowired
     private BlockNodeMappingRepo blockNodeMappingRepo;
-
+    @Autowired
+    private NodeManager nodeManager;
+    private int replicationFactor;
+    
+    
+    @PostConstruct
+    public void postConstruct() {
+    	this.replicationFactor = config.getReplicationFactor();
+    }
     public String registerBlockLocation(String hash, String nodeUrl) {
         logger.debug("MetaService: registerBlockLocation: {}->{}", hash, nodeUrl);
 
@@ -44,6 +60,13 @@ public class BlockMetaService {
             return null;
         }
     }
+    
+    public List<DfsNode> checkReplicationAndSelectNodes(String hash, String requestingNodeUrl) {
+        BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
+        Set<String> existingNodes = (blockNode != null) ? blockNode.getNodeUrls() : Set.of();
+        return nodeManager.selectNodeRoundRobin(existingNodes, replicationFactor, requestingNodeUrl);
+    }
+
 
     public String unregisterBlock(String hash) {
         logger.debug("Unregistering block with hash: {}", hash);

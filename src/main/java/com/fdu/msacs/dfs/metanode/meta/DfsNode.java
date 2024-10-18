@@ -6,37 +6,37 @@ public class DfsNode {
     private String containerUrl;
     private String localUrl;
     private Date lastTimeReport; // Last time the health status was reported
-    private HealthStatus healthStatus; // Health status
+    //private HealthStatus healthStatus; // Health status
 
     public DfsNode() {
         this.containerUrl = "";
         this.localUrl = "";
         this.lastTimeReport = new Date(); // Initialize to current time
-        this.healthStatus = HealthStatus.HEALTHY; // Initial status
+        //this.healthStatus = HealthStatus.HEALTHY; // Initial status
     }
     
     public DfsNode(String containerUrl, String localUrl) {
         this.containerUrl = containerUrl;
         this.localUrl = localUrl;
         this.lastTimeReport = new Date(); // Initialize to current time
-        this.healthStatus = HealthStatus.HEALTHY; // Initial status
+        //this.healthStatus = HealthStatus.HEALTHY; // Initial status
     }
 
     public DfsNode(String containerUrl) {
         this.containerUrl = containerUrl;
         this.localUrl = containerUrl;
         this.lastTimeReport = new Date(); // Initialize to current time
-        this.healthStatus = HealthStatus.HEALTHY; // Initial status
+        //this.healthStatus = HealthStatus.HEALTHY; // Initial status
     }
 
     public DfsNode(String containerUrl, Date lastTimeReport) {
         this.containerUrl = containerUrl;
         this.localUrl = containerUrl;
         this.lastTimeReport = lastTimeReport; // Use provided time
-        this.healthStatus = HealthStatus.HEALTHY; // Initial status
+        //this.healthStatus = HealthStatus.HEALTHY; // Initial status
     }
 
-    public String getContainerUrl() {
+	public String getContainerUrl() {
         return containerUrl;
     }
 
@@ -58,7 +58,6 @@ public class DfsNode {
                 "containerUrl='" + containerUrl + '\'' +
                 ", localUrl='" + localUrl + '\'' +
                 ", lastTimeReport=" + lastTimeReport +
-                ", healthStatus=" + healthStatus +
                 '}';
     }
 
@@ -70,22 +69,5 @@ public class DfsNode {
         this.lastTimeReport = lastTimeReport;
     }
 
-    public HealthStatus getHealthStatus() {
-        return healthStatus;
-    }
 
-    public void setHealthStatus(HealthStatus healthStatus) {
-        this.healthStatus = healthStatus;
-        this.lastTimeReport = new Date(); // Update report time when status changes
-    }
-    
-    public void updateHealthStatus(HealthStatus healthStatus) {
-        setHealthStatus(healthStatus);
-    }
-
-    public enum HealthStatus {
-        HEALTHY,
-        WARNING,
-        DEAD
-    }
 }

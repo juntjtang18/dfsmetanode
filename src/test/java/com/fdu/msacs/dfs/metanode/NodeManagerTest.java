@@ -15,7 +15,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
-import com.fdu.msacs.dfs.metanode.meta.DfsNode.HealthStatus;
 
 public class NodeManagerTest {
 
@@ -37,8 +36,6 @@ public class NodeManagerTest {
         when(dfsNode1.getContainerUrl()).thenReturn("http://node1");
         when(dfsNode2.getContainerUrl()).thenReturn("http://node2");
         when(dfsNode3.getContainerUrl()).thenReturn("http://node3");
-        when(dfsNode1.getHealthStatus()).thenReturn(DfsNode.HealthStatus.HEALTHY);
-        when(dfsNode2.getHealthStatus()).thenReturn(DfsNode.HealthStatus.HEALTHY);
         
     }
 
@@ -63,18 +60,20 @@ public class NodeManagerTest {
 
     @Test
     public void testGetReplicationNodes() {
-        
-        nodeManager.registerNode(dfsNode1);
-        nodeManager.registerNode(dfsNode2);
-        nodeManager.registerNode(dfsNode3);
+        // Register nodes
+        nodeManager.registerNode(dfsNode1);  // Requesting node
+        nodeManager.registerNode(dfsNode2);  // Live node
+        nodeManager.registerNode(dfsNode3);  // Live node
 
+        // Request replication nodes from "http://node1"
         List<DfsNode> nodes = nodeManager.getReplicationNodes("file.txt", "http://node1");
 
-        // Since there is only one healthy node, we should expect only that node to be returned
-        assertEquals(1, nodes.size());  // Expecting 1 node since only one is healthy
-        assertTrue(nodes.contains(dfsNode2)); // Should contain the healthy node
-        assertFalse(nodes.contains(dfsNode3)); // Should not contain the unhealthy node
-        assertFalse(nodes.contains(dfsNode1)); // Should not contain the requesting node
+        // Since there are two other live nodes, the method should return both.
+        assertEquals(2, nodes.size(), "Expected 2 nodes to be returned.");
+        assertTrue(nodes.contains(dfsNode2), "Should contain dfsNode2.");
+        assertTrue(nodes.contains(dfsNode3), "Should contain dfsNode3.");
+        assertFalse(nodes.stream().anyMatch(node -> node.getContainerUrl().equals("http://node1")),
+                "Should not contain the requesting node (http://node1).");
     }
 
 
@@ -108,7 +107,6 @@ public class NodeManagerTest {
         when(dfsNode1.getLastTimeReport()).thenReturn(new Date()); // Set last report to now
 
         nodeManager.checkNodeHealth();
-        assertEquals(DfsNode.HealthStatus.HEALTHY, dfsNode1.getHealthStatus());
     }
 
     @Test

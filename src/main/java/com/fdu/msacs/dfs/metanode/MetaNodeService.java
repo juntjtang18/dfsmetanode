@@ -9,14 +9,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
-import com.fdu.msacs.dfs.metanode.mdb.BlockNodeMappingRepo;
 import com.fdu.msacs.dfs.metanode.mdb.FileNodeMapping;
 import com.fdu.msacs.dfs.metanode.mdb.FileNodeMappingRepo;
 import com.fdu.msacs.dfs.metanode.mdb.NodeFileMapping;
 import com.fdu.msacs.dfs.metanode.mdb.NodeFileMappingRepo;
-import com.fdu.msacs.dfs.metanode.meta.DfsNode;
-import com.fdu.msacs.dfs.metanode.meta.FileRefManager;
 
 @Service
 public class MetaNodeService {
@@ -26,8 +22,6 @@ public class MetaNodeService {
     private FileNodeMappingRepo fileNodeMappingRepo;
     @Autowired
     private NodeFileMappingRepo nodeFileMappingRepo;
-    @Autowired
-    private NodeManager nodeManager;  // New NodeManager class for node management logic
 
     public String registerFileLocation(String filename, String nodeUrl) {
         // Update or create the FileNode entry
@@ -67,10 +61,6 @@ public class MetaNodeService {
     public List<String> getFileNodeMapping(String filename) {
         FileNodeMapping fnmap = fileNodeMappingRepo.findByFilename(filename).orElse(new FileNodeMapping());
         return new ArrayList<>(fnmap.getNodeUrls());
-    }
-
-    public DfsNode selectNodeForUpload() {
-        return nodeManager.selectNodeForUpload();  // Delegate node selection to NodeManager
     }
 
 	public boolean checkFileExists(String filename) {

@@ -22,15 +22,6 @@ public class MetaNodeServiceTest {
     private MetaNodeService metaNodeService;
 
     @Autowired
-    private FileNodeMappingRepo fileNodeMappingRepo;
-
-    @Autowired
-    private NodeFileMappingRepo nodeFileMappingRepo;
-
-    @Autowired
-    private BlockNodeMappingRepo blockNodeMappingRepo;
-
-    @Autowired
     private NodeManager nodeManager;
 
     private String testNodeUrl = "http://localhost:8080/node1";
@@ -70,13 +61,6 @@ public class MetaNodeServiceTest {
         metaNodeService.registerFileLocation(testFilename, testNodeUrl);
         List<String> files = metaNodeService.getNodeFiles(testNodeUrl);
         assertThat(files).containsExactly(testFilename);
-    }
-
-    @Test
-    public void testSelectNodeForUpload() {
-        DfsNode selectedNode = metaNodeService.selectNodeForUpload();
-        assertThat(selectedNode).isNotNull();
-        assertThat(selectedNode.getContainerUrl()).isEqualTo(testNodeUrl);
     }
 
     @Test

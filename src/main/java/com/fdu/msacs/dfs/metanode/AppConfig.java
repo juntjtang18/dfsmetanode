@@ -5,7 +5,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,7 +27,9 @@ public class AppConfig {
     
     @Value("${spring.data.mongodb.uri}")
     private String mongodbUri;
-
+    @Value("${dfs.replication.factor:3}")
+    private int replicateFactor;
+    
     @PostConstruct
     public void init() {
         String effectiveUri = EnvironmentUtils.isInDocker() 
@@ -69,6 +70,10 @@ public class AppConfig {
         // Use the value returned from config.getAppDir() to initialize FileRefManager
         String rootDir = getAppDir();
         return new FileRefManager(rootDir);
+    }
+    
+    public int getReplicationFactor() {
+    	return replicateFactor;
     }
     
     public static String getAppDir() {
@@ -132,5 +137,6 @@ public class AppConfig {
         }
 
         return dfsDir.getAbsolutePath();
-    }    
+    } 
+    
 }

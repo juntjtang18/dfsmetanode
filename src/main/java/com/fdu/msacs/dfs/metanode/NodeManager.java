@@ -2,8 +2,10 @@ package com.fdu.msacs.dfs.metanode;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -16,7 +18,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
-import com.fdu.msacs.dfs.metanode.meta.DfsNode.HealthStatus;
 
 @Service
 public class NodeManager {
@@ -26,12 +27,10 @@ public class NodeManager {
     private ConcurrentHashMap<String, DfsNode> deadNodes;
     private int currentNodeIndex = 0;
     private ExecutorService executorService;
-    private int roundRobinIndex = 0; // Index for round-robin selection
+    private int roundRobinIndex = 0;
 
     @Value("${dfs.metanode.healthcheck.down_threshold:6}") 
     private int HEALTH_CHECK_THRESHOLD; 
-    @Value("${dfs.metanode.healthcheck.warning_threshold:3}") 
-    private int WARNING_THRESHOLD;
 
     public NodeManager() {
         this.registeredNodes = new ConcurrentHashMap<>();
@@ -46,7 +45,6 @@ public class NodeManager {
         if (deadNodes.containsKey(nodeUrl)) {
             deadNodes.remove(nodeUrl);
             registeredNodes.put(nodeUrl, node);
-            node.setHealthStatus(HealthStatus.HEALTHY);
             node.setLastTimeReport(new Date());
             logger.info("A dead node revives: {}", nodeUrl);
             return "A dead node revives: " + nodeUrl;
@@ -57,7 +55,6 @@ public class NodeManager {
             logger.info("A new node registered: {}", nodeUrl);
             return "Node registered: " + nodeUrl;
         } else {
-            existingNode.setHealthStatus(HealthStatus.HEALTHY);
             existingNode.setLastTimeReport(new Date());
             logger.info("Node heartbeat listened from: {}", nodeUrl);
             return "Received Heartbeat from " + nodeUrl;
@@ -67,51 +64,49 @@ public class NodeManager {
     public List<DfsNode> getReplicationNodes(String filename, String requestingNodeUrl) {
         logger.info("Retrieving replication nodes for filename: {} requested by: {}", filename, requestingNodeUrl);
 
-        // Check for null inputs
+        // Validate input parameters
         if (filename == null || requestingNodeUrl == null) {
             logger.error("Filename or requesting node URL is null.");
-            return new ArrayList<>();  // Return an empty list to avoid null pointer exceptions
-        }
-
-        // Get all healthy nodes excluding the requesting node
-        List<DfsNode> healthyNodes = registeredNodes.values().stream()
-                .filter(node -> node != null && 
-                                node.getHealthStatus() != null && 
-                                node.getHealthStatus().equals(HealthStatus.HEALTHY) && 
-                                !node.getContainerUrl().equals(requestingNodeUrl))
-                .collect(Collectors.toList());
-
-        // If there are no healthy nodes available, return an empty list
-        if (healthyNodes.isEmpty()) {
-            logger.warn("No healthy nodes available for replication for filename: {}", filename);
             return new ArrayList<>();
         }
 
-        // If healthy nodes count is less than or equal to 2, return them directly
-        if (healthyNodes.size() <= 2) {
-            logger.info("Returning healthy nodes directly: {}", healthyNodes);
-            return new ArrayList<>(healthyNodes);
+        // Get live nodes excluding the requesting node
+        List<DfsNode> liveNodes = registeredNodes.values().stream()
+                .filter(node -> !node.getContainerUrl().equals(requestingNodeUrl))
+                .collect(Collectors.toList());
+
+        // If there are no other live nodes, log a warning and return an empty list
+        if (liveNodes.isEmpty()) {
+            logger.warn("No other live nodes available for replication for filename: {}", filename);
+            return new ArrayList<>();
         }
 
-        // If there are more than 2 healthy nodes, perform round-robin selection
+        // If there are 1 or 2 live nodes, return them directly
+        if (liveNodes.size() <= 2) {
+            logger.info("Returning available live nodes directly: {}", liveNodes);
+            return new ArrayList<>(liveNodes);
+        }
+
+        // Select up to 2 nodes using round-robin logic
         List<DfsNode> selectedNodes = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            // Use the round-robin index to select nodes, checking for index validity
-            int index = (roundRobinIndex + i) % healthyNodes.size();
-            selectedNodes.add(healthyNodes.get(index));
-            logger.debug("Selected node at index {}: {}", index, healthyNodes.get(index));
+            int index = (roundRobinIndex + i) % liveNodes.size();
+            selectedNodes.add(liveNodes.get(index));
+            logger.debug("Selected node at index {}: {}", index, liveNodes.get(index));
         }
 
-        // Update the round-robin index for the next call
-        roundRobinIndex = (roundRobinIndex + 2) % healthyNodes.size();
+        // Update the round-robin index for the next selection
+        roundRobinIndex = (roundRobinIndex + 2) % liveNodes.size();
         logger.info("Updated round-robin index to: {}", roundRobinIndex);
         logger.info("Final selected replication nodes: {}", selectedNodes);
 
         return selectedNodes;
     }
 
+    public DfsNode getNodeByContainerUrl(String containerUrl) {
+        return registeredNodes.get(containerUrl);
+    }
     
-    // Use Round-Robin to pick a node.
     public DfsNode selectNodeForUpload() {
         if (registeredNodes.isEmpty()) {
             return null;
@@ -122,16 +117,57 @@ public class NodeManager {
         return selectedNode;
     }
 
+    public List<DfsNode> selectNodeRoundRobin(Set<String> existingNodes, int n, String requestingNode) {
+        List<DfsNode> selectedNodes = new ArrayList<>();
+
+        // If the number of existing nodes is already greater than or equal to n, return an empty list.
+        if (existingNodes.size() >= n) {
+            return selectedNodes;
+        }
+
+        // If the requesting node is not in the existing nodes, add it to the selectedNodes.
+        if (!existingNodes.contains(requestingNode)) {
+            DfsNode requestingDfsNode = registeredNodes.get(requestingNode);
+            if (requestingDfsNode != null) {
+                selectedNodes.add(requestingDfsNode);
+            }
+        }
+
+        // Calculate how many more nodes we need to select to reach the total of n.
+        //int remainingNodesToSelect = n - existingNodes.size() - selectedNodes.size();
+
+        // Collect nodes from registeredNodes using round-robin, skipping those already in existingNodes.
+        List<DfsNode> registeredNodesList = new ArrayList<>(registeredNodes.values());
+        int registeredNodesSize = registeredNodesList.size();
+
+        for (int i = 0; i < registeredNodesSize && selectedNodes.size() + existingNodes.size() < n; i++) {
+            DfsNode candidateNode = registeredNodesList.get(roundRobinIndex);
+            roundRobinIndex = (roundRobinIndex + 1) % registeredNodesSize;
+
+            // Add only nodes that are not already in existingNodes and not the requestingNode.
+            if (!existingNodes.contains(candidateNode.getContainerUrl()) 
+                    && !selectedNodes.contains(candidateNode) 
+                    && !candidateNode.getContainerUrl().equals(requestingNode)) {
+                selectedNodes.add(candidateNode);
+            }
+        }
+
+        return selectedNodes;
+    }
+
+
+
+
     public List<DfsNode> getRegisteredNodes() {
         return new ArrayList<>(registeredNodes.values());
     }
     
     public void clearRegisteredNodes() {
-    	registeredNodes.clear();
-    	deadNodes.clear();
+        registeredNodes.clear();
+        deadNodes.clear();
     }
 
-    @Scheduled(fixedRateString = "${dfs.metanode.healthcheck.rate:3000}")
+    @Scheduled(fixedRateString = "${dfs.metanode.healthcheck.rate:60000}")
     public void checkNodeHealth() {
         Date now = new Date();
         logger.info("Starting health check for registered nodes at {}.", now);
@@ -144,13 +180,6 @@ public class NodeManager {
                 deadNodes.put(node.getContainerUrl(), node);
                 registeredNodes.remove(containerUrl);
                 executorService.submit(() -> handleDeadNode(node));
-            } else if (secondsSinceLastReport > WARNING_THRESHOLD) {
-                node.updateHealthStatus(HealthStatus.WARNING);
-                logger.info("Warning: node({}) has not reported for {} seconds. Status updated to WARNING.",
-                            node.getContainerUrl(), secondsSinceLastReport);
-            } else {
-                node.updateHealthStatus(HealthStatus.HEALTHY);
-                logger.info("Node({}) is healthy. Status remains HEALTHY.", node.getContainerUrl());
             }
         });
 
@@ -163,10 +192,9 @@ public class NodeManager {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        // Additional logic for handling the dead node can go here.
     }
 
-	public Map<String, DfsNode> getDeadNodes() {
+    public Map<String, DfsNode> getDeadNodes() {
         return deadNodes;
-	}
+    }
 }
