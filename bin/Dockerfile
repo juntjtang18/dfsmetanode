@@ -25,7 +25,7 @@ FROM openjdk:17-jdk-slim
 WORKDIR /app
 
 # Copy the built JAR file from the build stage
-COPY --from=build /app/target/dfsmetasvr-0.0.1-SNAPSHOT.jar ./app.jar
+COPY --from=build /app/dfsmetasvr-0.0.1-SNAPSHOT.jar ./app.jar
 
 # Command to run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]

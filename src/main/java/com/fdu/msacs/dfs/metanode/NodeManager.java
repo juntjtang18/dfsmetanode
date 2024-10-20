@@ -41,24 +41,28 @@ public class NodeManager {
     public String registerNode(DfsNode node) {
         String nodeUrl = node.getContainerUrl();
         DfsNode existingNode = registeredNodes.get(nodeUrl);
-
+        String returnMsg = "";
+        
         if (deadNodes.containsKey(nodeUrl)) {
             deadNodes.remove(nodeUrl);
             registeredNodes.put(nodeUrl, node);
             node.setLastTimeReport(new Date());
             logger.info("A dead node revives: {}", nodeUrl);
-            return "A dead node revives: " + nodeUrl;
+            returnMsg = "A dead node revives: " + nodeUrl;
         }
 
         if (existingNode == null) {
             registeredNodes.put(nodeUrl, node);
             logger.info("A new node registered: {}", nodeUrl);
-            return "Node registered: " + nodeUrl;
+            returnMsg = "Node registered: " + nodeUrl;
         } else {
             existingNode.setLastTimeReport(new Date());
             logger.info("Node heartbeat listened from: {}", nodeUrl);
-            return "Received Heartbeat from " + nodeUrl;
+            returnMsg = "Received Heartbeat from " + nodeUrl;
         }
+        // Log all registered nodes at debug level after method execution, including revived nodes
+        logger.debug("All registered nodes after registration: {}", new ArrayList<>(registeredNodes.values()));
+        return returnMsg;
     }
     
     public List<DfsNode> getReplicationNodes(String filename, String requestingNodeUrl) {

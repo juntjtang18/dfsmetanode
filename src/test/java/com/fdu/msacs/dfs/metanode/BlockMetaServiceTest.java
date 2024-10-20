@@ -2,6 +2,8 @@ package com.fdu.msacs.dfs.metanode;
 
 import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
 import com.fdu.msacs.dfs.metanode.mdb.BlockNodeMappingRepo;
+import com.fdu.msacs.dfs.metanode.meta.DfsNode;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.data.mongo.DataMongoTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,9 +26,16 @@ public class BlockMetaServiceTest {
     @Autowired
     private BlockMetaService blockService;
 
+    @Autowired
+    private NodeManager nodeManager;
+
+    @Autowired
+    private AppConfig appConfig; // Inject AppConfig to access replication factor
+
     @BeforeEach
     void setUp() {
         // Clean up the database before each test.
+    	nodeManager.clearRegisteredNodes();
         blockNodeMappingRepo.deleteAll();
     }
 
@@ -121,5 +131,76 @@ public class BlockMetaServiceTest {
         BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
         assertNotNull(blockNode);
         assertTrue(blockNode.getNodeUrls().contains(nodeUrl));
+    }
+    @Test
+    void testClearAllBlockNodes() {
+        // Setup initial data
+        blockService.registerBlockLocation("hash1", "http://node1.com");
+        blockService.registerBlockLocation("hash2", "http://node2.com");
+        blockService.registerBlockLocation("hash3", "http://node3.com");
+
+        // Assert that records are present before clearing
+        assertEquals(3, blockNodeMappingRepo.findAll().size(), "Should have 3 block nodes before clearing.");
+
+        // Call the method to clear all block nodes
+        blockService.clearAllBlockNodes();
+
+        // Assert that all records are cleared
+        assertEquals(0, blockNodeMappingRepo.findAll().size(), "Should have 0 block nodes after clearing.");
+    }
+    
+    @Test
+    void testCheckReplicationAndSelectNodesNotInRegistered() {
+        String hash = "hash1";
+        String requestingNodeUrl = "http://requestingNode.com";
+
+        // Register N nodes
+        String nodeUrl1 = "http://node1.com";
+        String nodeUrl2 = "http://node2.com";
+        String nodeUrl3 = "http://node3.com";
+        int replicationFactor = appConfig.getReplicationFactor(); // Get replication factor from AppConfig
+
+        // Register the block with 2 nodes
+        blockService.registerBlockLocation(hash, nodeUrl1);
+        blockService.registerBlockLocation(hash, nodeUrl2);
+
+        // Assume nodeManager is set up correctly with these nodes
+        nodeManager.registerNode(new DfsNode(nodeUrl1));
+        nodeManager.registerNode(new DfsNode(nodeUrl2));
+        nodeManager.registerNode(new DfsNode(nodeUrl3));
+        nodeManager.registerNode(new DfsNode(requestingNodeUrl)); // Include requesting node
+
+        List<DfsNode> selectedNodes = blockService.checkReplicationAndSelectNodes(hash, requestingNodeUrl);
+
+        // Should include the requesting node and replicationFactor - 1 nodes from registered nodes
+        assertEquals(1, selectedNodes.size());
+        assertTrue(selectedNodes.stream().anyMatch(node -> node.getContainerUrl().equals(requestingNodeUrl)));
+    }
+
+    @Test
+    void testCheckReplicationAndSelectNodesInRegistered() {
+        String hash = "hash2";
+        String requestingNodeUrl = "http://node1.com"; // This is part of the registered nodes
+
+        // Register N nodes
+        String nodeUrl1 = "http://node1.com";
+        String nodeUrl2 = "http://node2.com";
+        int replicationFactor = appConfig.getReplicationFactor(); // Get replication factor from AppConfig
+
+        // Register the block with 1 node
+        blockService.registerBlockLocation(hash, nodeUrl1);
+        blockService.registerBlockLocation(hash, requestingNodeUrl);
+
+        // Assume nodeManager is set up correctly with these nodes
+        nodeManager.registerNode(new DfsNode(nodeUrl1));
+        nodeManager.registerNode(new DfsNode(nodeUrl2));
+        nodeManager.registerNode(new DfsNode(requestingNodeUrl));
+
+        List<DfsNode> selectedNodes = blockService.checkReplicationAndSelectNodes(hash, requestingNodeUrl);
+
+        // Should not include the requesting node and should return replicationFactor - M nodes from registered nodes
+        assertEquals(1, selectedNodes.size());
+        assertFalse(selectedNodes.stream().anyMatch(node -> node.getContainerUrl().equals(requestingNodeUrl)));
+        assertTrue(selectedNodes.stream().anyMatch(node -> node.getContainerUrl().equals(nodeUrl2)));
     }
 }

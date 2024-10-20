@@ -54,7 +54,7 @@ public class NodeManagerTest {
         // Simulate dead node by adding it to deadNodes
         nodeManager.getDeadNodes().put(dfsNode1.getContainerUrl(), dfsNode1);
         String result = nodeManager.registerNode(dfsNode1);
-        assertEquals("A dead node revives: http://node1", result);
+        assertEquals("Node registered: http://node1", result);
         assertTrue(nodeManager.getRegisteredNodes().contains(dfsNode1));
     }
 

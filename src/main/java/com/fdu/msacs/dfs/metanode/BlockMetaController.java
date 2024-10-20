@@ -6,8 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -30,28 +32,22 @@ public class BlockMetaController {
     @PostMapping("/metadata/nodes-for-block")
     public ResponseEntity<List<DfsNode>> nodesForBlock(@RequestBody RequestNodesForBlock request) {
     	logger.info("/metadata/nodes-for-block requested for hash: {}", request.hash);
-    	List<DfsNode> nodes = blockMetaService.checkReplicationAndSelectNodes(request.hash, request.nodeUrl);
+    	List<DfsNode> nodes = blockMetaService.checkReplicationAndSelectNodes(request.hash, request.requestingNodeUrl);
     	return ResponseEntity.ok(nodes);
     	
     }
     
-    /*
-    @GetMapping("/metadata/block-exists/{hash}")
-    public ResponseEntity<Set<String>> blockExists(@PathVariable String hash) {
-        logger.info("/metadata/block-exists requested for hash: {}", hash);
-        Set<String> nodeUrls = blockService.blockExists(hash);
-        // Return an empty set if no block exists for the given hash
-        return ResponseEntity.ok(nodeUrls != null ? nodeUrls : Set.of());
+    @GetMapping("/metadata/block-nodes/{hash}")
+    public ResponseEntity<List<String>> blockNodes(@PathVariable String hash) {
+    	logger.info("/metadata/block-nodes/{} requested.", hash);
+    	BlockNode blockNode = blockMetaService.getBlockNodeByHash(hash);
+    	List<String> nodeUrls = new ArrayList<String>();
+    	if (blockNode!=null) {
+    		nodeUrls.addAll(blockNode.getNodeUrls());
+    	}
+    	return ResponseEntity.ok(nodeUrls);
     }
     
-    @GetMapping("/replication-check")
-    public ResponseEntity<List<DfsNode>> checkBlockReplication(
-            @RequestParam String blockHash, 
-            @RequestParam String nodeUrl) {
-        List<DfsNode> dfsNodes = blockService.checkReplicationAndSelectNodes(blockHash, nodeUrl);
-        return ResponseEntity.ok(dfsNodes);
-    }
-	*/
     @DeleteMapping("/metadata/unregister-block/{hash}")
     public ResponseEntity<String> unregisterBlock(@PathVariable String hash) {
         logger.info("/metadata/unregister-block requested for hash: {}", hash);
@@ -66,6 +62,12 @@ public class BlockMetaController {
         return ResponseEntity.ok(response);
     }
     
+    @DeleteMapping("/metadata/clear-all-block-nodes-mapping")
+    public ResponseEntity<String> clearAllBlocks() {
+        logger.info("/metadata/clear-all-blocks requested.");
+        String response = blockMetaService.clearAllBlockNodes();
+        return ResponseEntity.ok(response);
+    }
     
     // inner class for request
     public static class RequestBlockNode {
@@ -91,12 +93,12 @@ public class BlockMetaController {
     
     public static class RequestNodesForBlock {
     	public String hash;
-    	public String nodeUrl;
+    	public String requestingNodeUrl;
     	
         public String getHash() {            return hash;        }
         public void setHash(String hash) {            this.hash = hash;        }
-        public String getNodeUrl() {            return nodeUrl;        }
-        public void setNodeUrl(String nodeUrl) {            this.nodeUrl = nodeUrl;        }
+        public String getNodeUrl() {            return requestingNodeUrl;        }
+        public void setNodeUrl(String nodeUrl) {            this.requestingNodeUrl = nodeUrl;        }
     	
     }
 }

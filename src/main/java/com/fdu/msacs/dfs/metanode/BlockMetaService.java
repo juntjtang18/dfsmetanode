@@ -32,6 +32,7 @@ public class BlockMetaService {
     public void postConstruct() {
     	this.replicationFactor = config.getReplicationFactor();
     }
+    
     public String registerBlockLocation(String hash, String nodeUrl) {
         logger.debug("MetaService: registerBlockLocation: {}->{}", hash, nodeUrl);
 
@@ -43,12 +44,24 @@ public class BlockMetaService {
         } else {
             blockNode.getNodeUrls().add(nodeUrl);
         }
+        
         blockNodeMappingRepo.save(blockNode);
         logger.debug("Block {} registered to : {}", hash, nodeUrl);
         logger.debug("Current blockNodeMapping: {}", blockNodeMappingRepo.findAll());
         return "Block location registered: " + hash + " on " + nodeUrl;
     }
-
+    
+    public BlockNode getBlockNodeByHash(String hash) {
+        logger.debug("Fetching block node for hash: {}", hash);
+        BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
+        if (blockNode != null) {
+            logger.debug("Block node found for hash: {} -> {}", hash, blockNode);
+        } else {
+            logger.debug("No block node found for hash: {}", hash);
+        }
+        return blockNode;
+    }
+    
     public Set<String> blockExists(String hash) {
         logger.debug("Checking if block exists for hash: {}", hash);
         BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
@@ -63,6 +76,11 @@ public class BlockMetaService {
     
     public List<DfsNode> checkReplicationAndSelectNodes(String hash, String requestingNodeUrl) {
         BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
+        logger.debug("checkReplicationAndSelectNodes requested. ");
+        logger.debug(" blockNodeMapping for hash:({}) is {}", hash, blockNode);
+        List<DfsNode> registeredNodes = nodeManager.getRegisteredNodes();
+        logger.debug("Registered nodes now: {} ", registeredNodes);
+        
         Set<String> existingNodes = (blockNode != null) ? blockNode.getNodeUrls() : Set.of();
         return nodeManager.selectNodeRoundRobin(existingNodes, replicationFactor, requestingNodeUrl);
     }
@@ -105,5 +123,11 @@ public class BlockMetaService {
         logger.debug("Node URL: {} removed from block with hash: {}", nodeUrl, hash);
         return "Node URL removed from block: " + nodeUrl + " for hash: " + hash;
     }
-
+    
+    public String clearAllBlockNodes() {
+        logger.debug("Clearing all block node mappings.");
+        blockNodeMappingRepo.deleteAll();
+        logger.debug("All block node mappings have been cleared.");
+        return "All block nodes have been cleared.";
+    }
 }

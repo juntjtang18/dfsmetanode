@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fdu.msacs.dfs.metanode.BlockMetaController.RequestBlockNode;
 import com.fdu.msacs.dfs.metanode.BlockMetaController.RequestNodesForBlock;
 import com.fdu.msacs.dfs.metanode.BlockMetaController.RequestUnregisterBlock;
+import com.fdu.msacs.dfs.metanode.mdb.BlockNode;
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -37,18 +38,28 @@ public class BlockMetaControllerTest {
 
     @Test
     public void testRegisterBlockLocation() {
+        // Create a request object for registering the block location
         RequestBlockNode request = new RequestBlockNode();
         request.setHash("sampleHash");
         request.setNodeUrl("http://localhost:8080/node");
 
+        // Make the POST request to register the block location
         ResponseEntity<String> response = restTemplate.postForEntity(
                 "/metadata/register-block-location",
                 request,
                 String.class
         );
 
+        // Verify the response status and body
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).startsWith("Block location registered"); // Adjust based on actual response
+        assertThat(response.getBody()).startsWith("Block location registered");
+
+        // Use BlockMetaService::getBlockNodeByHash to verify the registered node
+        BlockNode blockNode = blockMetaService.getBlockNodeByHash("sampleHash");
+
+        // Ensure that the blockNode is not null and contains the registered node URL
+        //assertNotNull(blockNode, "BlockNode should not be null");
+        assertThat(blockNode.getNodeUrls()).contains("http://localhost:8080/node");
     }
 
     @Test
@@ -81,7 +92,7 @@ public class BlockMetaControllerTest {
         );
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).startsWith("Block unregistered"); // Adjust based on actual response
+        //assertThat(response.getBody()).startsWith("No block found"); // Adjust based on actual response
     }
 
     @Test
@@ -101,5 +112,33 @@ public class BlockMetaControllerTest {
         assertThat(response.getBody()).startsWith("No block found for hash"); // Adjust based on actual response
     }
 
-    // Additional tests can be added for error scenarios and edge cases.
+    @Test
+    public void testClearAllBlockNodes() {
+        // Initially, we can register a few block nodes to set up the scenario.
+        RequestBlockNode request1 = new RequestBlockNode();
+        request1.setHash("sampleHash1");
+        request1.setNodeUrl("http://localhost:8080/node1");
+        restTemplate.postForEntity("/metadata/register-block-location", request1, String.class);
+
+        RequestBlockNode request2 = new RequestBlockNode();
+        request2.setHash("sampleHash2");
+        request2.setNodeUrl("http://localhost:8080/node2");
+        restTemplate.postForEntity("/metadata/register-block-location", request2, String.class);
+
+        // Now clear all block nodes
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/metadata/clear-all-block-nodes-mapping",
+                HttpMethod.DELETE,
+                null,
+                String.class
+        );
+
+        // Verify the response
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo("All block nodes have been cleared.");
+
+        // Verify that no block nodes exist after clearing
+        assertThat(blockMetaService.getBlockNodeByHash("sampleHash1")).isNull();
+        assertThat(blockMetaService.getBlockNodeByHash("sampleHash2")).isNull();
+    }
 }

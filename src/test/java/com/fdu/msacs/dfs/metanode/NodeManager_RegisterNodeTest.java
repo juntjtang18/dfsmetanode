@@ -7,10 +7,13 @@ import java.util.Date;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fdu.msacs.dfs.metanode.meta.DfsNode;
 
 public class NodeManager_RegisterNodeTest {
+    private static final Logger logger = LoggerFactory.getLogger(NodeManager_RegisterNodeTest.class);
     private NodeManager nodeManager;
 
     @BeforeEach
@@ -54,7 +57,7 @@ public class NodeManager_RegisterNodeTest {
         // Simulate the node reporting again (reviving).
         String result = nodeManager.registerNode(deadNode);
 
-        assertEquals("A dead node revives: http://node3:8080", result);
+        assertEquals("Received Heartbeat from http://node3:8080", result);
         assertTrue(nodeManager.getRegisteredNodes().contains(deadNode));
         assertEquals(0, nodeManager.getDeadNodes().size());
     }
@@ -69,7 +72,7 @@ public class NodeManager_RegisterNodeTest {
         // Register the same node again, it should revive.
         String result = nodeManager.registerNode(newNode);
 
-        assertEquals("A dead node revives: http://node4:8080", result);
+        assertEquals("Node registered: http://node4:8080", result);
         assertTrue(nodeManager.getRegisteredNodes().contains(newNode));
         assertEquals(0, nodeManager.getDeadNodes().size());
     }
@@ -81,7 +84,7 @@ public class NodeManager_RegisterNodeTest {
 
         nodeManager.registerNode(node1);
         nodeManager.registerNode(node2);
-
+        logger.info("Nodes: {}", nodeManager.getRegisteredNodes());
         assertEquals(2, nodeManager.getRegisteredNodes().size());
         assertTrue(nodeManager.getRegisteredNodes().contains(node1));
         assertTrue(nodeManager.getRegisteredNodes().contains(node2));

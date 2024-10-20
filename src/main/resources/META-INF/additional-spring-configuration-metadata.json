@@ -1,0 +1,5 @@
+{"properties": [{
+  "name": "dfs.replication.factor",
+  "type": "java.lang.String",
+  "description": "A description for 'dfs.replication.factor'"
+}]}
