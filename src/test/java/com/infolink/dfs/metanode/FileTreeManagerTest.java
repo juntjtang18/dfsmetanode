@@ -1,18 +1,28 @@
 package com.infolink.dfs.metanode;
 
+import com.infolink.dfs.metanode.mdb.BlockNode;
 import com.infolink.dfs.shared.DfsFile;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test") // Assuming you have a test profile set up
@@ -27,17 +37,31 @@ public class FileTreeManagerTest {
     private final String testDirectory = "/testDir";
     private final String testFileName = "testFile.txt";
     private final String testOwner = "testOwner";
-
+    private final String fileHash = "testFileHash";
+    private DfsFile testDfsFile;
+    private List<String> blockHashes;
+    
+    @Autowired
+    private BlockMetaService blockMetaService;
+    
+    
     @BeforeEach
     void setUp() {
         // Clear any existing data before each test
         fileTreeManager.clearAllData();
+       
     }
 
     @AfterEach
     void tearDown() {
         // Clean up after each test
         fileTreeManager.clearAllData();
+        String hashKey = fileHash;
+        redisTemplate.delete(hashKey);
+
+        //for (String blockHash : blockHashes) {
+            blockMetaService.clearAllBlockNodes(); // Assuming there's a method to delete block nodes
+        //}
     }
 
     @Test
@@ -100,7 +124,7 @@ public class FileTreeManagerTest {
         DfsFile testFile = new DfsFile("testHash", testOwner, testFileName, testDirectory + "/" + testFileName, 0L, false, null, List.of());
         fileTreeManager.saveFile(testFile, testDirectory);
 
-        DfsFile retrievedFile = fileTreeManager.getFile(testDirectory + "/" + testFileName);
+        DfsFile retrievedFile = fileTreeManager.getFileByPath(testDirectory + "/" + testFileName);
         assertNotNull(retrievedFile);
         assertEquals(testFileName, retrievedFile.getName());
     }
@@ -119,4 +143,39 @@ public class FileTreeManagerTest {
         // Ensure data does not exist after clearing
         assertNull(redisTemplate.opsForValue().get(testDirectory + "/" + testFileName));
     }
+    
+    @Test
+    void testGetBlockNodesListByHash() throws Exception {
+        // Set up block hashes and corresponding BlockNodes
+        blockHashes = Arrays.asList("blockHash1", "blockHash2", "blockHash3");
+        testDfsFile = new DfsFile(fileHash, "testOwner", "testFile.txt", "/testDir/testFile.txt", 0L, false, null, blockHashes);
+
+        // Store the test file in Redis
+        String hashKey = fileHash;
+        redisTemplate.opsForValue().set(hashKey, testDfsFile);
+
+        // Store BlockNodes for each blockHash
+        for (String blockHash : blockHashes) {
+        	try {
+        		blockMetaService.registerBlockLocation(blockHash, "Node1 for " + blockHash); // Ensure this method saves the node data properly
+        		blockMetaService.registerBlockLocation(blockHash, "Node2 for " + blockHash);
+        	} catch (Exception e) {
+        		e.printStackTrace();
+        	}
+        }
+
+        // Call the method to get the list of BlockNodes for the given file hash
+        List<BlockNode> actualBlockNodes = fileTreeManager.getBlockNodesListByHash(fileHash);
+
+        // Verify that the list is not null and contains the expected number of nodes
+        assertNotNull(actualBlockNodes);
+        assertEquals(blockHashes.size(), actualBlockNodes.size());
+
+        // Verify that each BlockNode matches the expected block hash and address
+        for (int i = 0; i < blockHashes.size(); i++) {
+            assertEquals(blockHashes.get(i), actualBlockNodes.get(i).getHash());
+        }
+    }
+
+
 }

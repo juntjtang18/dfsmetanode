@@ -3,6 +3,7 @@ package com.infolink.dfs.metanode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +23,11 @@ public class BlockMetaController {
     
     @PostMapping("/metadata/block/register-block-location")
     public ResponseEntity<String> registerBlockLocation(@RequestBody RequestBlockNode request) {
+    	if (request==null || request.getHash()==null || request.getNodeUrl() == null) {
+    		logger.debug("Bad request parameter. Either request is null or hash/nodeUrl is null.");
+    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Bad request parameter. Either request is null or hash/nodeUrl is null.");
+    	}
+    	
         logger.info("/metadata/register-block-location requested with: {}->{}", request.hash, request.nodeUrl);
         String hash = request.hash;
         String nodeUrl = request.nodeUrl;
@@ -31,8 +37,10 @@ public class BlockMetaController {
     
     @PostMapping("/metadata/block/nodes-for-block")
     public ResponseEntity<ResponseNodesForBlock> nodesForBlock(@RequestBody RequestNodesForBlock request) {
-    	logger.info("/metadata/nodes-for-block requested for hash: {}", request.hash);
-    	ResponseNodesForBlock responseNodesForBlock = blockMetaService.checkBlockReplicationAndSelectNodes(request.hash, request.requestingNodeUrl);
+    	logger.info("/metadata/block/nodes-for-block requested for hash: {}", request.hash);
+    	logger.info("request = {} {}", request.getHash(), request.getNodeUrl());
+    	
+    	ResponseNodesForBlock responseNodesForBlock = blockMetaService.checkBlockReplicationAndSelectNodes(request.hash, request.nodeUrl);
     	return ResponseEntity.ok(responseNodesForBlock);    	
     }
     
@@ -92,12 +100,12 @@ public class BlockMetaController {
     
     public static class RequestNodesForBlock {
     	public String hash;
-    	public String requestingNodeUrl;
+    	public String nodeUrl;
     	
         public String getHash() {            return hash;        }
         public void setHash(String hash) {            this.hash = hash;        }
-        public String getNodeUrl() {            return requestingNodeUrl;        }
-        public void setNodeUrl(String nodeUrl) {            this.requestingNodeUrl = nodeUrl;        }
+        public String getNodeUrl() {            return nodeUrl;        }
+        public void setNodeUrl(String nodeUrl) {            this.nodeUrl = nodeUrl;        }
     	
     }
     
@@ -105,7 +113,8 @@ public class BlockMetaController {
         public static enum Status {
             SUCCESS,
             NO_NODES_AVAILABLE,
-            ALREADY_ENOUGH_COPIES
+            ALREADY_ENOUGH_COPIES,
+            INPUT_PARAMETERS_IS_NULL
         }
 
         private Status status;

@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import com.infolink.dfs.metanode.mdb.BlockNode;
 import com.infolink.dfs.shared.DfsFile;
 import com.infolink.dfs.shared.HashUtil;
 
@@ -25,8 +26,10 @@ public class FileTreeManager {
     private static final String HASH_PREFIX = "";
     
     @Autowired
-    private RedisTemplate<String, DfsFile> redisTemplate;
-
+    private RedisTemplate<String, DfsFile> redisFileRepo;
+    @Autowired
+    private BlockMetaService blockMetaService;
+    
     public String saveFile(DfsFile dfsFile, String targetDirectory) throws NoSuchAlgorithmException {
         // Validate input parameters
         if (dfsFile == null) {
@@ -60,19 +63,19 @@ public class FileTreeManager {
         //String filePath = targetDirectory + "/" + fileName;
         String fileKey = FILE_PREFIX + targetDirectory + "/" + fileName; // Directly use filePath as the key
 
-        if (redisTemplate.hasKey(fileKey)) {
+        if (redisFileRepo.hasKey(fileKey)) {
             throw new IllegalArgumentException("A file with the same name already exists in the target directory.");
         }
 
         // Log before saving
-        logger.info("Before saving to Redis: key = {}, value = {}", fileKey, dfsFile);
+        //logger.info("Before saving to Redis: key = {}, value = {}", fileKey, dfsFile);
         
         // Store the DfsFile directly in Redis
-        redisTemplate.opsForValue().set(fileKey, dfsFile);
-        redisTemplate.opsForValue().set(dfsFile.getHash(), dfsFile);
+        redisFileRepo.opsForValue().set(fileKey, dfsFile);
+        redisFileRepo.opsForValue().set(dfsFile.getHash(), dfsFile);
 
         // Log after saving
-        logger.info("After saving to Redis: key = {}", fileKey);
+        //logger.info("After saving to Redis: key = {}", fileKey);
         return dfsFile.getHash();
     }
 
@@ -88,7 +91,7 @@ public class FileTreeManager {
             String currentPathStr = currentPath.toString();
             String dirKey = DIR_PREFIX + currentPathStr;
 
-            DfsFile existingDir = redisTemplate.opsForValue().get(dirKey);
+            DfsFile existingDir = redisFileRepo.opsForValue().get(dirKey);
             if (existingDir == null) {
                 String dirHash = generateHashForPath(currentPathStr);
                 DfsFile newDir = new DfsFile(
@@ -104,8 +107,8 @@ public class FileTreeManager {
                 newDir.setCreateTime(new Date());
                 newDir.setLastModifiedTime(new Date());
 
-                redisTemplate.opsForValue().set(dirKey, newDir);
-                redisTemplate.opsForValue().set(newDir.getHash(), newDir);
+                redisFileRepo.opsForValue().set(dirKey, newDir);
+                redisFileRepo.opsForValue().set(newDir.getHash(), newDir);
                 parentId = dirHash;
             } else {
                 parentId = existingDir.getHash();
@@ -125,7 +128,7 @@ public class FileTreeManager {
         List<DfsFile> files = new ArrayList<>();
 
         // Using wildcard to match files in the specified directory
-        Set<String> keys = redisTemplate.keys(dirKey + "/*");
+        Set<String> keys = redisFileRepo.keys(dirKey + "/*");
         
     	logger.info("in redistTemplate.keys({}:", dirKey+"/*");
         for(String key : keys) {
@@ -136,7 +139,7 @@ public class FileTreeManager {
         
         if (keys != null && !keys.isEmpty()) {
             keys.forEach(key -> {
-                DfsFile file = redisTemplate.opsForValue().get(key);
+                DfsFile file = redisFileRepo.opsForValue().get(key);
                 if (file != null) {
                     files.add(file);
                 }
@@ -147,7 +150,7 @@ public class FileTreeManager {
     }
 
     public void logAllKeys() {
-        Set<String> keys = redisTemplate.keys("*"); // Use wildcard "*" to match all keys
+        Set<String> keys = redisFileRepo.keys("*"); // Use wildcard "*" to match all keys
 
         logger.info("Logging all keys in Redis:");
         if (keys != null && !keys.isEmpty()) {
@@ -159,16 +162,41 @@ public class FileTreeManager {
         }
     }
     
-    public boolean checkFileExists(String filePath) {
+    public boolean checkFileExistsByPath(String filePath) {
     	
-    	return getFile(filePath) != null; 
+    	return getFileByPath(filePath) != null; 
     }
-
-    public DfsFile getFile(String filePath) {
+    
+    public boolean checkFileExistsByHash(String hash) {
+    	return getFileByHash(hash) != null;
+    }
+    
+    public DfsFile getFileByPath(String filePath) {
         String fileKey = FILE_PREFIX + filePath;
-        return redisTemplate.opsForValue().get(fileKey);
+        return redisFileRepo.opsForValue().get(fileKey);
     }
-
+    
+    public DfsFile getFileByHash(String hash) {
+    	String hashkey = HASH_PREFIX + hash;
+    	return redisFileRepo.opsForValue().get(hashkey);
+    }
+    
+    public List<BlockNode> getBlockNodesListByHash(String fileHash) throws Exception {
+    	String hashkey = HASH_PREFIX + fileHash;
+    	DfsFile dfsFile = redisFileRepo.opsForValue().get(hashkey);
+    	List<String> blockHashes = dfsFile.getBlockHashes();
+    	List<BlockNode> blockNodeList = new ArrayList<BlockNode>();
+    	for (String blockHash : blockHashes) {
+    		// get the nodes for the blockHash.
+    		BlockNode blockNode = blockMetaService.getBlockNodeByHash(blockHash);
+    		if (blockNode == null) {
+    			throw new Exception("File with hash{" + fileHash + "} broken.");
+    		}
+    		blockNodeList.add(blockNode);
+    	}
+    	return blockNodeList;
+    }
+    
     /*
      * Here the hash for the path is temporary method to calculate. 
      * In future, need to think about that a folder's hash should be calculated based on files and subfolders' hash.
@@ -184,13 +212,40 @@ public class FileTreeManager {
      * This method should be used with caution and is primarily intended for testing purposes.
      */
     public void clearAllData() {
-        Set<String> keys = redisTemplate.keys("*");
+        Set<String> keys = redisFileRepo.keys("*");
 
         if (keys != null && !keys.isEmpty()) {
-            redisTemplate.delete(keys);
+            redisFileRepo.delete(keys);
             logger.info("Cleared all keys in Redis for testing purposes.");
         } else {
             logger.info("No keys found to clear in Redis.");
+        }
+    }
+    
+    public void deleteByHash(String fileHash) {
+        String hashKey = HASH_PREFIX + fileHash;
+        DfsFile dfsFile = redisFileRepo.opsForValue().get(hashKey);
+        if (dfsFile != null) {
+            String fileKey = FILE_PREFIX + dfsFile.getPath();
+            redisFileRepo.delete(hashKey);
+            redisFileRepo.delete(fileKey); // Also delete by path
+            logger.info("Deleted file with hash: {}", fileHash);
+        } else {
+            logger.warn("No file found with hash: {}", fileHash);
+        }
+    }
+
+    public void deleteByPath(String filePath) {
+        String fileKey = FILE_PREFIX + filePath;
+        DfsFile dfsFile = redisFileRepo.opsForValue().get(fileKey);
+        if (dfsFile != null) {
+            // Delete the file from Redis using its path
+        	String hashKey = HASH_PREFIX + dfsFile.getHash();
+            redisFileRepo.delete(fileKey);
+            redisFileRepo.delete(hashKey); // Also delete by hash
+            logger.info("Deleted file with path: {}", filePath);
+        } else {
+            logger.warn("No file found with path: {}", filePath);
         }
     }
 }

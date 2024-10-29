@@ -7,10 +7,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.infolink.dfs.metanode.mdb.BlockNode;
 import com.infolink.dfs.shared.DfsFile;
 
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class FileTreeController {
@@ -18,6 +21,8 @@ public class FileTreeController {
 
     @Autowired
     private FileTreeManager fileTreeManager;
+    @Autowired
+    private BlockMetaService blockMetaService;
 
     /**
      * Endpoint to save a file.
@@ -48,14 +53,49 @@ public class FileTreeController {
      */
     @GetMapping("/metadata/file/{hash}")
     public ResponseEntity<DfsFile> getFile(@PathVariable String hash) {
-        DfsFile dfsFile = fileTreeManager.getFile(hash);
+        DfsFile dfsFile = fileTreeManager.getFileByHash(hash);
         if (dfsFile != null) {
             return ResponseEntity.ok(dfsFile);
         } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(null);
+        }
+    }
+    
+    @PostMapping("/metadata/file/get-by-filepath")
+    public ResponseEntity<DfsFile> getByFilePath(@RequestBody Map<String, String> request) {
+        String username = request.get("username");
+        String filePath = request.get("filePath");
+
+        // Use both username and filePath in file lookup
+        DfsFile dfsFile = fileTreeManager.getFileByPath(filePath);
+        if (dfsFile != null) {
+            return ResponseEntity.ok(dfsFile);
+        } else {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(null);
         }
     }
 
+    @PostMapping("/metadata/file/block-nodes")
+    public ResponseEntity<List<BlockNode>> getBlockNodesListByFileHash(@RequestBody String fileHash) {
+        logger.debug("Received request to get block nodes for file hash: {}", fileHash);
+
+        DfsFile dfsFile = fileTreeManager.getFileByPath(fileHash);
+        if (dfsFile == null) {
+            logger.warn("No DfsFile found for hash: {}", fileHash);
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(null);
+        }
+
+        try {
+            logger.info("Fetching block nodes for file hash: {}", fileHash);
+            List<BlockNode> blockNodeList = fileTreeManager.getBlockNodesListByHash(fileHash);
+            logger.info("Successfully retrieved {} block nodes for file hash: {}", blockNodeList.size(), fileHash);
+            return ResponseEntity.status(HttpStatus.OK).body(blockNodeList);
+        } catch (Exception e) {
+            logger.error("Error occurred while retrieving block nodes for file hash: {}", fileHash, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+    
     /**
      * Endpoint to list files in a directory.
      *
@@ -71,7 +111,12 @@ public class FileTreeController {
         logger.info("Returning files: {}", files);
         return ResponseEntity.ok(files);
     }
-
+    
+    @DeleteMapping("/metadata/file/clear-all-data")
+    public ResponseEntity<String> clearAllData() {
+    	fileTreeManager.clearAllData();
+    	return ResponseEntity.ok("All dfs files cleard.");
+    }
     /**
      * Inner class to represent a request containing the DfsFile and target directory.
      */

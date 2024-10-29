@@ -49,17 +49,21 @@ public class BlockMetaService {
         
         blockNodeMappingRepo.save(blockNode);
         logger.debug("Block {} registered to : {}", hash, nodeUrl);
-        logger.debug("Current blockNodeMapping: {}", blockNodeMappingRepo.findAll());
+        logger.debug("Current blockNodeMapping for hash: {}: ", hash);
+        BlockNode bnode = blockNodeMappingRepo.findByHash(hash);
+        for(String nodeurl : bnode.getNodeUrls()) {
+        	logger.debug("    {}", nodeurl);
+        }
         return "Block location registered: " + hash + " on " + nodeUrl;
     }
     
-    public BlockNode getBlockNodeByHash(String hash) {
-        logger.debug("Fetching block node for hash: {}", hash);
-        BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
+    public BlockNode getBlockNodeByHash(String blockHash) {
+        logger.debug("Fetching block node for hash: {}", blockHash);
+        BlockNode blockNode = blockNodeMappingRepo.findByHash(blockHash);
         if (blockNode != null) {
-            logger.debug("Block node found for hash: {} -> {}", hash, blockNode);
+            logger.debug("Block node found for hash: {} -> {}", blockHash, blockNode);
         } else {
-            logger.debug("No block node found for hash: {}", hash);
+            logger.debug("No block node found for hash: {}", blockHash);
         }
         return blockNode;
     }
@@ -79,12 +83,14 @@ public class BlockMetaService {
     public ResponseNodesForBlock checkBlockReplicationAndSelectNodes(String hash, String requestingNodeUrl) {
         BlockNode blockNode = blockNodeMappingRepo.findByHash(hash);
         
-        logger.debug("checkReplicationAndSelectNodes requested. ");
+        //logger.debug("checkReplicationAndSelectNodes requested. ");
         logger.debug(" blockNodeMapping for hash:({}) is {}", hash, blockNode);
-        List<DfsNode> registeredNodes = nodeManager.getRegisteredNodes();
-        logger.debug("Registered nodes now: {} ", registeredNodes);
+        logger.debug("requestingNodeUrl is {}", requestingNodeUrl);
+        //List<DfsNode> registeredNodes = nodeManager.getRegisteredNodes();
+        //logger.debug("Registered nodes now: {} ", registeredNodes);
         
-        Set<String> existingNodes = (blockNode != null) ? blockNode.getNodeUrls() : Set.of();
+        Set<String> existingNodes = (blockNode != null) ? blockNode.getNodeUrls() : new HashSet<String>();
+        if (existingNodes==null) existingNodes = new HashSet<>();
         ResponseNodesForBlock response = nodeManager.selectNodeRoundRobin(existingNodes, replicationFactor, requestingNodeUrl);
         return response;
     }

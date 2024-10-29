@@ -36,7 +36,16 @@ public class MetaNodeController {
         List<DfsNode> registeredNodes = nodeManager.getRegisteredNodes(); // Delegate retrieval to NodeManager
         return ResponseEntity.ok(registeredNodes);
     }
-
+    
+    @PostMapping("/metadata/get-localurl-for-node")
+    public ResponseEntity<String> getLocalUrlForNode(@RequestBody String containerUrl) {
+    	if (containerUrl==null) {
+    		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("The containerUrl is null.");
+    	}
+    	String localUrl = nodeManager.getLocalUrlForNode(containerUrl);
+    	return ResponseEntity.status(HttpStatus.OK).body(localUrl);
+    }
+    
     @PostMapping("/metadata/clear-registered-nodes")
     public ResponseEntity<String> clearRegisteredNodes() {
         nodeManager.clearRegisteredNodes(); // Clear all registered nodes through NodeManager
@@ -48,14 +57,14 @@ public class MetaNodeController {
         String filename = requestUpload.getFilename();
         String targetDir = requestUpload.getTargetDir();
         String fullPath = targetDir + "/" + filename;
-        boolean fileExists = fileTreeManager.checkFileExists(fullPath);
+        boolean fileExists = fileTreeManager.checkFileExistsByPath(fullPath);
 
         if (fileExists) {
         	logger.info("File {} exists.", fullPath);
         }
         
         // Select a node using Weighted Round Robin
-        DfsNode selectedNode = nodeManager.selectNodeForUpload();
+        DfsNode selectedNode = nodeManager.selectNodeRoundRobin();
 
         if (selectedNode == null) {
             logger.info("No node selected by nodeManager. Service temporarily unavailable.");
@@ -75,13 +84,13 @@ public class MetaNodeController {
         String filename = requestUpload.getFilename();
         String targetDir = requestUpload.getTargetDir();
         String fullPath = targetDir + "/" + filename;
-        boolean fileExists = fileTreeManager.checkFileExists(fullPath);
+        boolean fileExists = fileTreeManager.checkFileExistsByPath(fullPath);
 
         if (fileExists) {
         	logger.info("File {} exists.", fullPath);
         }
 
-        DfsNode selectedNode = nodeManager.selectNodeForUpload();
+        DfsNode selectedNode = nodeManager.selectNodeRoundRobin();
 
         if (selectedNode == null) {
             logger.info("No node selected by nodeManager. Service temporarily unavailable.");
@@ -94,6 +103,34 @@ public class MetaNodeController {
         logger.info("Upload URL: {}", uploadUrl);
         return ResponseEntity.ok(new UploadResponse(fileExists, uploadUrl));
     }
+    
+    @PostMapping("/metadata/download-url")
+    public ResponseEntity<String> getDownloadUrl(@RequestBody String hash) {
+        logger.info("Received request to get download URL for file with hash: {}", hash);
+        
+        boolean fileExists = fileTreeManager.checkFileExistsByHash(hash);
+        if (!fileExists) {
+            logger.warn("File with hash {} does not exist.", hash);
+            ResponseEntity<String> response = ResponseEntity.status(HttpStatus.NO_CONTENT).body("File {" + hash + "} does not exist.");
+            
+            logger.info("Response for non-existent file: {}", response);
+            return response;
+        }
+
+        logger.info("File with hash {} exists. Proceeding to select a node.", hash);
+        DfsNode selectedNode = nodeManager.selectNodeRoundRobin();
+        if (selectedNode == null) {
+            logger.warn("No node selected by nodeManager for file with hash: {}. Service temporarily unavailable.", hash);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body("No node available to download.");
+        }
+
+        String downloadUrl = selectedNode.getLocalUrl() + "/dfs/file/download";
+        logger.info("Node selected: {}. Generated download URL: {}", selectedNode.getLocalUrl(), downloadUrl);
+
+        return ResponseEntity.ok(downloadUrl);
+    }
+
 
     @GetMapping("/metadata/pingsvr")
     public String pingSvr() {

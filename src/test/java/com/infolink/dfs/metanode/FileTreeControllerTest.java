@@ -1,5 +1,6 @@
 package com.infolink.dfs.metanode;
 
+import com.infolink.dfs.metanode.mdb.BlockNode;
 import com.infolink.dfs.shared.DfsFile;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 
+import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -32,7 +34,10 @@ public class FileTreeControllerTest {
 
     @Autowired
     private FileTreeManager fileTreeManager;
-
+    
+    @Autowired
+    private BlockMetaService blockMetaService;
+    
     private String baseUrl;
 
     @BeforeEach
@@ -200,6 +205,92 @@ public class FileTreeControllerTest {
         }
 
         // Verify the response status and that the list contains the files we saved
+    }
+
+    @Test
+    public void testClearAllData() {
+        // First, add a file to ensure there's data to clear
+        DfsFile testFile = new DfsFile();
+        testFile.setHash("hash123");
+        testFile.setName("example.txt");
+        testFile.setOwner("testOwner");
+        testFile.setPath("/test-directory/example.txt");
+        testFile.setSize(1024);
+        testFile.setDirectory(false);
+        testFile.setParentHash("parentHash123");
+        testFile.setBlockHashes(Collections.singletonList("blockHash1"));
+        testFile.setCreateTime(new Date());
+        testFile.setLastModifiedTime(new Date());
+
+        // Save the test file
+        saveTestFile(testFile, "/test-directory");
+
+        // Now, make a DELETE request to the clear all data endpoint
+        ResponseEntity<String> response = restTemplate.exchange(
+                baseUrl + "/metadata/file/clear-all-data", 
+                HttpMethod.DELETE, 
+                null, 
+                String.class
+        );
+
+        // Verify the response status
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo("All dfs files cleard.");
+
+        // Attempt to retrieve the previously saved file to ensure it has been cleared
+        ResponseEntity<DfsFile> fileResponse = restTemplate.getForEntity(
+                baseUrl + "/metadata/file/hash123", DfsFile.class);
+
+        // Verify that the file no longer exists
+        assertThat(fileResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    }
+    
+    @Test
+    public void testGetBlockNodesListByFileHash() throws NoSuchAlgorithmException {
+        // Create and save a test file with blocks
+        DfsFile testFile = new DfsFile();
+        String targetDirectory = "/test-directory";
+        String fileHash = "hash123";
+        testFile.setHash(fileHash);
+        testFile.setName("example.txt");
+        testFile.setOwner("testOwner");
+        testFile.setPath("/test-directory/example.txt");
+        testFile.setSize(1024);
+        testFile.setDirectory(false);
+        testFile.setParentHash("parentHash123");
+        testFile.setBlockHashes(List.of("blockHash1", "blockHash2")); // Adding multiple block hashes
+        testFile.setCreateTime(new Date());
+        testFile.setLastModifiedTime(new Date());
+
+        // Save the test file in your persistent store
+        fileTreeManager.saveFile(testFile, targetDirectory);
+
+        // Register the block locations
+        blockMetaService.registerBlockLocation("blockHash1", "node1");
+        blockMetaService.registerBlockLocation("blockHash2", "node2");
+        String requestBody = fileHash;
+
+        ResponseEntity<List<BlockNode>> response = restTemplate.exchange(
+                baseUrl + "/metadata/file/block-nodes",  // Updated endpoint URL
+                HttpMethod.POST,
+                new HttpEntity<>(requestBody),  // Wrap the requestBody in HttpEntity
+                new ParameterizedTypeReference<List<BlockNode>>() {}
+        );
+		
+        // Verify the response
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).hasSize(2);
+
+        // Check the first block node
+        BlockNode blockNode1 = response.getBody().get(0);
+        assertThat(blockNode1.getHash()).isEqualTo("blockHash1");
+        assertThat(blockNode1.getNodeUrls()).contains("node1"); // Check for the expected URL
+
+        // Check the second block node
+        BlockNode blockNode2 = response.getBody().get(1);
+        assertThat(blockNode2.getHash()).isEqualTo("blockHash2");
+        assertThat(blockNode2.getNodeUrls()).contains("node2"); // Check for the expected URL
+        
     }
 
 

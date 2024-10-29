@@ -34,7 +34,7 @@ public class AppConfig {
     private String mongodbUri;
     @Value("${dfs.replication.factor:3}")
     private int replicateFactor;
-    @Value("${spring.redis.host}")
+    
     private String redisHost;
     
     @PostConstruct
@@ -46,13 +46,11 @@ public class AppConfig {
         System.setProperty("spring.data.mongodb.uri", effectiveMongoUri);
         
         // Set Redis host dynamically based on environment
-        String effectiveRedisHost = EnvironmentUtils.isInDocker() 
-            ? "redis" 
-            : "localhost";
-        System.setProperty("spring.redis.host", effectiveRedisHost);
+        this.redisHost = EnvironmentUtils.isInDocker() ? "redis" : "localhost";
+        System.setProperty("spring.redis.host", redisHost);
         
         logger.info("MongoDB URI set to: {}", effectiveMongoUri);
-        logger.info("Redis host set to: {}", effectiveRedisHost);
+        logger.info("Redis host set to: {}", redisHost);
     }
     
     @Bean
@@ -69,7 +67,9 @@ public class AppConfig {
     
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
-        return new LettuceConnectionFactory();
+        // Use the dynamically set redisHost here
+        LettuceConnectionFactory connectionFactory = new LettuceConnectionFactory(redisHost, 6379);
+        return connectionFactory;
     }
     
     @Bean
