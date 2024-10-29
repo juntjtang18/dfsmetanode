@@ -23,10 +23,11 @@ import com.infolink.dfs.shared.DfsFile;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration
 @EnableMongoRepositories(basePackages = "com.fdu.msacs.dfs.metanode.mdb")
-
+@EnableScheduling
 public class AppConfig {
     private static final Logger logger = LoggerFactory.getLogger(AppConfig.class);
     

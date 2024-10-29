@@ -30,7 +30,7 @@ public class NodeManager {
     private ExecutorService executorService;
     private int roundRobinIndex = 0;
 
-    @Value("${dfs.metanode.healthcheck.down_threshold:6}") 
+    @Value("${dfs.node.heartbeat.rate:30000}") 
     private int HEALTH_CHECK_THRESHOLD; 
 
     public NodeManager() {
@@ -203,20 +203,24 @@ public class NodeManager {
         deadNodes.clear();
     }
 
-    @Scheduled(fixedRateString = "${dfs.metanode.healthcheck.rate:60000}")
+    @Scheduled(fixedRateString = "${dfs.node.heartbeat.rate:30000}") // Execute every 10 seconds
     public void checkNodeHealth() {
         Date now = new Date();
         logger.info("Starting health check for registered nodes at {}.", now);
 
-        registeredNodes.forEach((containerUrl, node) -> {
+        // Use an iterator to avoid ConcurrentModificationException
+        registeredNodes.entrySet().removeIf(entry -> {
+            DfsNode node = entry.getValue();
             long secondsSinceLastReport = (now.getTime() - node.getLastTimeReport().getTime()) / 1000;
 
-            if (secondsSinceLastReport > HEALTH_CHECK_THRESHOLD) {
+            if (secondsSinceLastReport > HEALTH_CHECK_THRESHOLD + 1) {
                 logger.info("The node({}) is down. Moving to deadNodes from registered nodes.", node.getContainerUrl());
                 deadNodes.put(node.getContainerUrl(), node);
-                registeredNodes.remove(containerUrl);
+                // Returning true will remove the entry from registeredNodes
                 executorService.submit(() -> handleDeadNode(node));
+                return true; // Indicate that this entry should be removed
             }
+            return false; // Keep the entry in registeredNodes
         });
 
         logger.info("Health check completed at {}. Total nodes monitored: {}.", now, registeredNodes.size());
