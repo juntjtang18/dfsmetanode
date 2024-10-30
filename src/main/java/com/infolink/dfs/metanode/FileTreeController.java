@@ -79,7 +79,7 @@ public class FileTreeController {
     public ResponseEntity<List<BlockNode>> getBlockNodesListByFileHash(@RequestBody String fileHash) {
         logger.debug("Received request to get block nodes for file hash: {}", fileHash);
 
-        DfsFile dfsFile = fileTreeManager.getFileByPath(fileHash);
+        DfsFile dfsFile = fileTreeManager.getFileByHash(fileHash);
         if (dfsFile == null) {
             logger.warn("No DfsFile found for hash: {}", fileHash);
             return ResponseEntity.status(HttpStatus.NO_CONTENT).body(null);
@@ -117,6 +117,38 @@ public class FileTreeController {
     	fileTreeManager.clearAllData();
     	return ResponseEntity.ok("All dfs files cleard.");
     }
+    
+    @PostMapping("/metadata/directory/create")
+    public ResponseEntity<String> createDirectory(@RequestBody RequestDirectory request) {
+        try {
+            String directory = request.getDirectory();
+            String owner = request.getOwner();
+
+            String directoryHash = fileTreeManager.createDirectoriesRecursively(directory, owner);
+            logger.info("Directory {} created with hash {}", directory, directoryHash);
+            return ResponseEntity.ok("Directory created with hash: " + directoryHash);
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("Error creating directory: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating directory: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/metadata/directory/create-subdirectory")
+    public ResponseEntity<String> createSubdirectory(@RequestBody RequestCreateSubdirectory request) {
+        try {
+            String directory = request.getDirectory();
+            String parentDirectory = request.getParentDirectory();
+            String owner = request.getOwner();
+
+            String finalDirHash = fileTreeManager.createDirectory(directory, parentDirectory, owner);
+            logger.info("Subdirectory {} created within parent directory {} with final hash {}", directory, parentDirectory, finalDirHash);
+            return ResponseEntity.ok("Subdirectory created with final hash: " + finalDirHash);
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("Error creating subdirectory: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating subdirectory: " + e.getMessage());
+        }
+    }
+
     /**
      * Inner class to represent a request containing the DfsFile and target directory.
      */
@@ -147,6 +179,7 @@ public class FileTreeController {
      */
     public static class RequestDirectory {
         private String directory;
+        private String owner;
 
         // Getters and Setters
         public String getDirectory() {
@@ -155,6 +188,45 @@ public class FileTreeController {
 
         public void setDirectory(String directory) {
             this.directory = directory;
+        }
+
+		public String getOwner() {
+			return owner;
+		}
+
+		public void setOwner(String owner) {
+			this.owner = owner;
+		}
+    }
+    
+    public static class RequestCreateSubdirectory {
+        private String directory;
+        private String parentDirectory;
+        private String owner;
+
+        // Getters and Setters
+        public String getDirectory() {
+            return directory;
+        }
+
+        public void setDirectory(String directory) {
+            this.directory = directory;
+        }
+
+        public String getParentDirectory() {
+            return parentDirectory;
+        }
+
+        public void setParentDirectory(String parentDirectory) {
+            this.parentDirectory = parentDirectory;
+        }
+
+        public String getOwner() {
+            return owner;
+        }
+
+        public void setOwner(String owner) {
+            this.owner = owner;
         }
     }
 }

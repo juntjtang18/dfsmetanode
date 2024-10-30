@@ -70,7 +70,8 @@ public class FileTreeManagerTest {
         fileTreeManager.saveFile(testFile, testDirectory);
 
         // Verify the file was saved correctly
-        DfsFile retrievedFile = redisTemplate.opsForValue().get(testDirectory + "/" + testFileName);
+        String fileKey = FileTreeManager.FILE_PREFIX + testDirectory + "/" + testFileName;
+        DfsFile retrievedFile = redisTemplate.opsForValue().get(fileKey);
         assertNotNull(retrievedFile);
         assertEquals(testFileName, retrievedFile.getName());
     }
@@ -94,7 +95,7 @@ public class FileTreeManagerTest {
         fileTreeManager.createDirectoriesRecursively(nestedDirectory, testOwner);
 
         // Check if the directories are created
-        assertNotNull(redisTemplate.opsForValue().get(nestedDirectory));
+        assertNotNull(redisTemplate.opsForValue().get(FileTreeManager.DIR_PREFIX + nestedDirectory));
     }
 
     @Test
@@ -113,7 +114,7 @@ public class FileTreeManagerTest {
             currentPath.append("/").append(segment);
             
             // Check if the current directory exists in Redis
-            DfsFile dir = redisTemplate.opsForValue().get(currentPath.toString());
+            DfsFile dir = redisTemplate.opsForValue().get(FileTreeManager.DIR_PREFIX + currentPath.toString());
             assertNotNull(dir, "Directory " + currentPath.toString() + " should exist");
             assertTrue(dir.isDirectory(), "The path " + currentPath.toString() + " should be a directory");
         }
@@ -135,13 +136,13 @@ public class FileTreeManagerTest {
         fileTreeManager.saveFile(testFile, testDirectory);
 
         // Ensure data exists before clearing
-        assertNotNull(redisTemplate.opsForValue().get(testDirectory + "/" + testFileName));
+        assertNotNull(redisTemplate.opsForValue().get(FileTreeManager.FILE_PREFIX + testDirectory + "/" + testFileName));
 
         // Clear all data
         fileTreeManager.clearAllData();
 
         // Ensure data does not exist after clearing
-        assertNull(redisTemplate.opsForValue().get(testDirectory + "/" + testFileName));
+        assertNull(redisTemplate.opsForValue().get(FileTreeManager.FILE_PREFIX + testDirectory + "/" + testFileName));
     }
     
     @Test
@@ -151,7 +152,7 @@ public class FileTreeManagerTest {
         testDfsFile = new DfsFile(fileHash, "testOwner", "testFile.txt", "/testDir/testFile.txt", 0L, false, null, blockHashes);
 
         // Store the test file in Redis
-        String hashKey = fileHash;
+        String hashKey = FileTreeManager.HASH_PREFIX + fileHash;
         redisTemplate.opsForValue().set(hashKey, testDfsFile);
 
         // Store BlockNodes for each blockHash

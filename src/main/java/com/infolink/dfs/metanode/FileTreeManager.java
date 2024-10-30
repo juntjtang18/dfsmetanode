@@ -13,6 +13,7 @@ import com.infolink.dfs.shared.HashUtil;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -21,9 +22,9 @@ import java.util.Set;
 public class FileTreeManager {
     private static final Logger logger = LoggerFactory.getLogger(FileTreeManager.class);
     
-    private static final String DIR_PREFIX = ""; 
-    private static final String FILE_PREFIX = "";
-    private static final String HASH_PREFIX = "";
+    static final String DIR_PREFIX = "dir:"; 
+    static final String FILE_PREFIX = "file:";
+    static final String HASH_PREFIX = "hash:";
     
     @Autowired
     private RedisTemplate<String, DfsFile> redisFileRepo;
@@ -31,6 +32,8 @@ public class FileTreeManager {
     private BlockMetaService blockMetaService;
     
     public String saveFile(DfsFile dfsFile, String targetDirectory) throws NoSuchAlgorithmException {
+    	if (!targetDirectory.startsWith("/")) targetDirectory = "/" + targetDirectory;
+    	
         // Validate input parameters
         if (dfsFile == null) {
             throw new IllegalArgumentException("DfsFile cannot be null");
@@ -61,8 +64,10 @@ public class FileTreeManager {
         createDirectoriesRecursively(targetDirectory, owner);
 
         //String filePath = targetDirectory + "/" + fileName;
-        String fileKey = FILE_PREFIX + targetDirectory + "/" + fileName; // Directly use filePath as the key
-
+        String fileKey 		= FILE_PREFIX + targetDirectory + "/" + fileName; // Directly use filePath as the key
+        String parentDirKey = DIR_PREFIX  + targetDirectory;
+        String hashKey		= HASH_PREFIX + dfsFile.getHash();
+        
         if (redisFileRepo.hasKey(fileKey)) {
             throw new IllegalArgumentException("A file with the same name already exists in the target directory.");
         }
@@ -72,20 +77,44 @@ public class FileTreeManager {
         
         // Store the DfsFile directly in Redis
         redisFileRepo.opsForValue().set(fileKey, dfsFile);
-        redisFileRepo.opsForValue().set(dfsFile.getHash(), dfsFile);
-
+        redisFileRepo.opsForValue().set(hashKey, dfsFile);
+        redisFileRepo.opsForSet().add(parentDirKey + ":files", dfsFile);
+        
         // Log after saving
         //logger.info("After saving to Redis: key = {}", fileKey);
         return dfsFile.getHash();
     }
 
-    void createDirectoriesRecursively(String path, String owner) throws NoSuchAlgorithmException {
+    public String createDirectory(String directory, String parentDirectory, String owner) throws NoSuchAlgorithmException {
+        // Ensure that directory and parentDirectory start with "/"
+        if (!directory.startsWith("/")) directory = "/" + directory;
+        if (!parentDirectory.startsWith("/")) parentDirectory = "/" + parentDirectory;
+
+        String fullPath = parentDirectory.endsWith("/") ? parentDirectory + directory : parentDirectory + "/" + directory;
+
+        // Create directories recursively up to the target directory and get the hash of the final directory
+        String finalDirHash = createDirectoriesRecursively(fullPath, owner);
+
+        logger.info("Created directory {} within parent directory {}", directory, parentDirectory);
+        return finalDirHash;
+    }
+
+    public String createDirectoriesRecursively(String path, String owner) throws NoSuchAlgorithmException {
+        if (!path.startsWith("/")) path = "/" + path;
+
         String[] pathSegments = path.split("/");
+
+        logger.debug("Path={}, split segments are: {}", path, pathSegments);
+
         StringBuilder currentPath = new StringBuilder();
         String parentId = null;
+        String parentDir = null;
+        String finalDirHash = null;
 
         for (String segment : pathSegments) {
-            if (segment.isEmpty()) continue; 
+            logger.debug("Creating directory: {}", segment);
+
+            if (segment.isEmpty()) continue;
             currentPath.append("/").append(segment);
 
             String currentPathStr = currentPath.toString();
@@ -94,60 +123,61 @@ public class FileTreeManager {
             DfsFile existingDir = redisFileRepo.opsForValue().get(dirKey);
             if (existingDir == null) {
                 String dirHash = generateHashForPath(currentPathStr);
-                DfsFile newDir = new DfsFile(
-                    dirHash,
-                    owner,
-                    segment,
-                    currentPathStr,
-                    0L,
-                    true,
-                    parentId,
-                    List.of()
-                );
-                newDir.setCreateTime(new Date());
-                newDir.setLastModifiedTime(new Date());
+                DfsFile newDir = new DfsFile(dirHash, owner, segment, currentPathStr, 0L, true, parentId, List.of());
 
                 redisFileRepo.opsForValue().set(dirKey, newDir);
-                redisFileRepo.opsForValue().set(newDir.getHash(), newDir);
+                String hashKey = HASH_PREFIX + dirHash;
+                redisFileRepo.opsForValue().set(hashKey, newDir);
+
+                logger.debug("Directory {} mapped to {}", dirKey, newDir);
+                logger.debug("Hash {} mapped to {}", hashKey, newDir);
+
+                if (parentId != null) {
+                    String parentDirKey = DIR_PREFIX + parentDir;
+                    redisFileRepo.opsForSet().add(parentDirKey + ":dir", newDir);
+                    logger.debug("ParentDirKey={}", parentDirKey + ":dir");
+                }
                 parentId = dirHash;
+                parentDir = currentPathStr;
+                finalDirHash = dirHash;
             } else {
                 parentId = existingDir.getHash();
+                parentDir = currentPathStr;
+                finalDirHash = parentId; // Update to the hash of the existing directory
             }
         }
+
+        return finalDirHash; // Return the hash of the final directory
     }
 
+    /**
+     * List all files and subdirectories in a given directory, sorted by type.
+     * Directories appear first, followed by files.
+     *
+     * @param directory the directory path to list contents from
+     * @return a list of DfsFile objects representing the files and directories within the specified directory
+     */
     public List<DfsFile> listFilesInDirectory(String directory) {
-    	
-        if (directory == null || directory.trim().isEmpty()) {
-            throw new IllegalArgumentException("Directory cannot be null or empty");
-        }
-        
-        logAllKeys();
-        
-        String dirKey = FILE_PREFIX + directory;
-        List<DfsFile> files = new ArrayList<>();
+        List<DfsFile> filesAndDirectories = new ArrayList<>();
 
-        // Using wildcard to match files in the specified directory
-        Set<String> keys = redisFileRepo.keys(dirKey + "/*");
-        
-    	logger.info("in redistTemplate.keys({}:", dirKey+"/*");
-        for(String key : keys) {
-        	logger.info("key: {}", key);
-        }
-        
-        logger.info("listFilesInDirectory(...) dirKey={}", dirKey+"/*");
-        
-        if (keys != null && !keys.isEmpty()) {
-            keys.forEach(key -> {
-                DfsFile file = redisFileRepo.opsForValue().get(key);
-                if (file != null) {
-                    files.add(file);
-                }
-            });
+        // Fetch files
+        Set<DfsFile> files = redisFileRepo.opsForSet().members(DIR_PREFIX + directory + ":files");
+        if (files != null) {
+            filesAndDirectories.addAll(files);
         }
 
-        return files;
+        // Fetch subdirectories
+        Set<DfsFile> subdirectories = redisFileRepo.opsForSet().members(DIR_PREFIX + directory + ":dir");
+        if (subdirectories != null) {
+            filesAndDirectories.addAll(subdirectories);
+        }
+
+        // Sort directories first, then files
+        filesAndDirectories.sort(Comparator.comparing(DfsFile::isDirectory).reversed().thenComparing(DfsFile::getName));
+
+        return filesAndDirectories;
     }
+
 
     public void logAllKeys() {
         Set<String> keys = redisFileRepo.keys("*"); // Use wildcard "*" to match all keys

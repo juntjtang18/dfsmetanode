@@ -15,7 +15,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-public class MetaNodeControllerTest {
+public class NodeManageControllerTest {
 
     @LocalServerPort
     private int port;
@@ -84,16 +84,16 @@ public class MetaNodeControllerTest {
     	registerNode(node2);
     	registerNode(node3);
     	
-        MetaNodeController.RequestUpload requestUpload = new MetaNodeController.RequestUpload(
+    	NodeManageController.RequestUpload requestUpload = new NodeManageController.RequestUpload(
             "uuid-1234", "testfile.txt", "/uploads", "owner1"
         );
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<MetaNodeController.RequestUpload> request = new HttpEntity<>(requestUpload, headers);
+        HttpEntity<NodeManageController.RequestUpload> request = new HttpEntity<>(requestUpload, headers);
 
-        ResponseEntity<MetaNodeController.UploadResponse> response = restTemplate.postForEntity(
-            baseUrl + "/upload-url", request, MetaNodeController.UploadResponse.class
+        ResponseEntity<NodeManageController.UploadResponse> response = restTemplate.postForEntity(
+            baseUrl + "/upload-url", request, NodeManageController.UploadResponse.class
         );
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
