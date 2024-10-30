@@ -1,0 +1,25 @@
+<div th:fragment="navbar">
+	<!-- navbar.html -->
+	<nav class="navbar navbar-expand-lg navbar-light bg-light">
+	    <a class="navbar-brand" href="#">MetaNode</a>
+	    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+	        <span class="navbar-toggler-icon"></span>
+	    </button>
+	    <div class="collapse navbar-collapse" id="navbarNav">
+	        <ul class="navbar-nav">
+	            <li class="nav-item" th:classappend="${currentPage == 'home'} ? 'active'">
+	                <a class="nav-link" href="/">Home <span class="sr-only">(current)</span></a>
+	            </li>
+	            <li class="nav-item" th:classappend="${currentPage == 'about'} ? 'active'">
+	                <a class="nav-link" href="#">About</a>
+	            </li>
+	            <li class="nav-item" th:classappend="${currentPage == 'contact'} ? 'active'">
+	                <a class="nav-link" href="#">Contact</a>
+	            </li>
+	            <li class="nav-item" th:classappend="${currentPage == 'files'} ? 'active'">
+	                <a class="nav-link" href="/files">Files</a>
+	            </li>
+	        </ul>
+	    </div>
+	</nav>
+</div>

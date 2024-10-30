@@ -99,7 +99,7 @@ public class FileTreeController {
     /**
      * Endpoint to list files in a directory.
      *
-     * @param request The request containing the directory to list files from.
+     * @param request The request containing the directory to list files from. "/" means the root directory
      * @return ResponseEntity with the list of files or error message.
      */
     @PostMapping("/metadata/file/list")
@@ -182,21 +182,10 @@ public class FileTreeController {
         private String owner;
 
         // Getters and Setters
-        public String getDirectory() {
-            return directory;
-        }
-
-        public void setDirectory(String directory) {
-            this.directory = directory;
-        }
-
-		public String getOwner() {
-			return owner;
-		}
-
-		public void setOwner(String owner) {
-			this.owner = owner;
-		}
+        public String getDirectory() 				{            return directory;        }
+        public void setDirectory(String directory) 	{            this.directory = directory;        }
+		public String getOwner() 					{			return owner;		}
+		public void setOwner(String owner) 			{			this.owner = owner;		}
     }
     
     public static class RequestCreateSubdirectory {
@@ -205,28 +194,11 @@ public class FileTreeController {
         private String owner;
 
         // Getters and Setters
-        public String getDirectory() {
-            return directory;
-        }
-
-        public void setDirectory(String directory) {
-            this.directory = directory;
-        }
-
-        public String getParentDirectory() {
-            return parentDirectory;
-        }
-
-        public void setParentDirectory(String parentDirectory) {
-            this.parentDirectory = parentDirectory;
-        }
-
-        public String getOwner() {
-            return owner;
-        }
-
-        public void setOwner(String owner) {
-            this.owner = owner;
-        }
+        public String getDirectory() 				{            return directory;        }
+        public void setDirectory(String directory) 	{            this.directory = directory;        }
+        public String getParentDirectory() 			{            return parentDirectory;        }
+        public void setParentDirectory(String parentDirectory) {            this.parentDirectory = parentDirectory;        }
+        public String getOwner() 					{            return owner;        }
+        public void setOwner(String owner) 			{            this.owner = owner;        }
     }
 }

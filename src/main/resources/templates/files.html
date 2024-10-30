@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaNode Files</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+
+    <!-- Include the navigation bar -->
+    <div th:replace="fragments/navbar :: navbar"></div>
+
+    <div class="container mt-4">
+        <h1>Files</h1>
+
+        <!-- Breadcrumb for navigation -->
+        <nav aria-label="breadcrumb">
+            <ol id="breadcrumb" class="breadcrumb">
+                <li class="breadcrumb-item"><a href="#" onclick="goToDirectory('/')">Home</a></li>
+            </ol>
+        </nav>
+
+        <div class="panel panel-default">
+            <div class="panel-body">
+                <ul id="fileList" class="list-group">
+                    <!-- Files will be dynamically added here -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        let currentDirectory = "/";  // Store the current directory path
+        let breadcrumbPath = []; // Array to track the breadcrumb path
+
+        // Function to fetch files from the server
+        async function fetchFiles(directory) {
+            const requestData = { directory };
+
+            try {
+                const response = await fetch("/metadata/file/list", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    console.error("Failed to fetch files:", response.statusText);
+                    return [];
+                }
+
+                const files = await response.json();
+                console.log("Files received from server:", files);
+                displayFiles(files);
+            } catch (error) {
+                console.error("Error fetching files:", error);
+            }
+        }
+
+        function displayFiles(files) {
+            const fileList = document.getElementById("fileList");
+            fileList.innerHTML = "";  // Clear existing file list
+
+            if (files.length === 0) {
+                fileList.innerHTML = `<li class="list-group-item">No files found in the directory.</li>`;
+            } else {
+                files.forEach(file => {
+                    let fileItem;
+
+                    if (file.directory) {
+                        // Template for a directory
+                        fileItem = `
+                            <li class="list-group-item d-flex justify-content-between align-items-center directory" style="cursor:pointer;" onclick="handleDirectoryClick('${file.path}')">
+                                <div>
+                                    <i class="file-icon fas fa-folder"></i>
+                                    <strong> ${file.name}</strong>
+                                </div>
+                            </li>`;
+                    } else {
+                        // Template for a file with a block nodes icon on the right
+                        fileItem = `
+                            <li class="list-group-item d-flex justify-content-between align-items-center file">
+                                <div>
+                                    <i class="file-icon fas fa-file"></i>
+                                    <strong> ${file.name}</strong>
+                                </div>
+                                <span class="text-info" style="cursor:pointer;" onclick="fetchAndDisplayBlockNodes('${file.hash}')">
+                                    <i class="fas fa-cubes"></i> <!-- Block nodes icon -->
+                                </span>
+                            </li>`;
+                    }
+
+                    fileList.insertAdjacentHTML('beforeend', fileItem);  // Insert the appropriate HTML based on file type
+                });
+            }
+            updateBreadcrumb();
+        }
+        
+        async function fetchAndDisplayBlockNodes(fileHash) {
+            console.log("fetch blockNodes for fileHash:");
+            console.log(fileHash);
+            
+            try {
+                const response = await fetch("/metadata/file/block-nodes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    // Use JSON.stringify to send just the string without extra quotes
+                    body: fileHash // This will send the fileHash as a plain string
+                });
+
+                if (!response.ok) {
+                    console.error("Failed to fetch block nodes:", response.statusText);
+                    return;
+                }
+                console.log(response);
+                
+                const blockNodes = await response.json();
+                console.log("Block nodes for file:", blockNodes);
+                
+                // Display block nodes (e.g., in a modal or alert for simplicity)
+                let blockNodeInfo = blockNodes.map(node => `<li>${node.hash} - Nodes: ${[...node.nodeUrls].join(", ")}</li>`).join("");
+                alert("Block Nodes:\n" + blockNodeInfo);  // Replace with more advanced UI if needed
+
+            } catch (error) {
+                console.error("Error fetching block nodes:", error);
+            }
+        }
+     
+     
+        // Update the breadcrumb navigation
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById("breadcrumb");
+            breadcrumb.innerHTML = '<li class="breadcrumb-item"><a href="#" onclick="goToDirectory(\'/\')">Home</a></li>';
+            
+            let path = "";  // Accumulated path
+            breadcrumbPath.forEach((dir, index) => {
+                path += `/${dir}`;
+                breadcrumb.innerHTML += `
+                    <li class="breadcrumb-item">
+                        <a href="#" onclick="goToDirectory('${path}')">${dir}</a>
+                    </li>`;
+            });
+        }
+
+        // Handle directory click
+        function handleDirectoryClick(path) {
+            const pathParts = path.split("/").filter(part => part); // Split path and remove empty parts
+            breadcrumbPath = pathParts; // Update breadcrumb path
+            currentDirectory = path;  // Update current directory
+            fetchFiles(currentDirectory);  // Fetch files for the clicked directory
+        }
+
+        // Go to the specified directory
+        function goToDirectory(path) {
+            const pathParts = path.split("/").filter(part => part); // Split path and remove empty parts
+            breadcrumbPath = pathParts; // Update breadcrumb path
+            currentDirectory = path;  // Update current directory
+            fetchFiles(currentDirectory);  // Fetch files for the directory
+        }
+
+        // Fetch files on page load
+        document.addEventListener("DOMContentLoaded", () => {
+            fetchFiles(currentDirectory);  // Initial fetch for the root directory
+        });
+    </script>
+
+</body>
+</html>

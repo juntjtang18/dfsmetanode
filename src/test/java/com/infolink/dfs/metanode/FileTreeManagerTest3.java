@@ -178,5 +178,35 @@ public class FileTreeManagerTest3 {
         assertNotNull(createdDir, "Deeply nested directory was not created");
         assertEquals(finalDirHash, createdDir.getHash(), "Hash does not match the expected hash of the final directory for deep nesting");
     }
+    @Test
+    public void testListRootDirectory() throws NoSuchAlgorithmException {
+        // Create directories at the root level
+        String layer1APath = "/layer1A/layer2A";
+        String layer1BPath = "/layer1B/layer2B";
+
+        // Create directories recursively
+        fileTreeManager.createDirectoriesRecursively(layer1APath, owner);
+        fileTreeManager.createDirectoriesRecursively(layer1BPath, owner);
+
+        // Define and save files in the root directory
+        DfsFile testFile1 = new DfsFile("hash6", owner, "testfile1.txt", "/testfile1.txt", 1024, false, "parentHash1", null);
+        DfsFile testFile2 = new DfsFile("hash7", owner, "testfile2.txt", "/testfile2.txt", 2048, false, "parentHash1", null);
+
+        // Save files to root
+        fileTreeManager.saveFile(testFile1, "/");
+        fileTreeManager.saveFile(testFile2, "/");
+
+        // Verify subdirectories and files in the root directory
+        validateSubdirectoriesInDirectory("/", "layer1A", "layer1B");
+        validateFilesInDirectory("/", "testfile1.txt", "testfile2.txt");
+
+        // Verify contents using listFilesInDirectory
+        List<DfsFile> rootContents = fileTreeManager.listFilesInDirectory("/");
+        List<String> actualRootNames = rootContents.stream().map(DfsFile::getName).collect(Collectors.toList());
+
+        // Expected order: directories first, then files
+        List<String> expectedRootNames = Arrays.asList("layer1A", "layer1B", "testfile1.txt", "testfile2.txt");
+        assertEquals(expectedRootNames, actualRootNames, "Root directory contents do not match expected order and names");
+    }
     
 }

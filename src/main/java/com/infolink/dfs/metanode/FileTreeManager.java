@@ -105,11 +105,18 @@ public class FileTreeManager {
         String[] pathSegments = path.split("/");
 
         logger.debug("Path={}, split segments are: {}", path, pathSegments);
+        String rootDir = "/";
+        String rootDirKey = DIR_PREFIX + rootDir;
+        String rootHash = generateHashForPath(rootDir);
+        if (redisFileRepo.opsForValue().get(rootDirKey) == null) {
+            DfsFile rootDirDfsFile = new DfsFile(generateHashForPath("/"), owner, "/", "/", 0L, true, null, List.of());
+            redisFileRepo.opsForValue().set(rootDirKey, rootDirDfsFile);
+        }
 
         StringBuilder currentPath = new StringBuilder();
-        String parentId = null;
-        String parentDir = null;
-        String finalDirHash = null;
+        String parentId = rootHash;
+        String parentDir = rootDir;
+        String finalDirHash = rootHash;
 
         for (String segment : pathSegments) {
             logger.debug("Creating directory: {}", segment);

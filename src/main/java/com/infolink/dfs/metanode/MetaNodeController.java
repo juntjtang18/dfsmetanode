@@ -24,7 +24,15 @@ public class MetaNodeController {
         logger.debug("registeredNodes={}", registeredNodes);
         
         model.addAttribute("registeredNodes", registeredNodes);  // Add the registeredNodes to the model
+        model.addAttribute("currentPage", "home");
         
         return "index"; // returns index.html
+    }
+    
+    @GetMapping("/files")
+    public String dfsFiles(Model model) {
+        model.addAttribute("currentPage", "files");
+    	logger.debug("/files requested.");
+    	return "files";
     }
 }
