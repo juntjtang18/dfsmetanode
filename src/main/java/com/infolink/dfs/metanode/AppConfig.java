@@ -19,6 +19,7 @@ import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.infolink.dfs.metanode.mdb.BlockNode;
 import com.infolink.dfs.shared.DfsFile;
 
 import jakarta.annotation.PostConstruct;
@@ -80,6 +81,21 @@ public class AppConfig {
         
         // Use Jackson for value serialization
         Jackson2JsonRedisSerializer<DfsFile> valueSerializer = new Jackson2JsonRedisSerializer<>(DfsFile.class);
+        template.setValueSerializer(valueSerializer);
+        
+        // Use StringRedisSerializer for keys
+        template.setKeySerializer(new StringRedisSerializer());
+        
+        return template;
+    }
+    
+    @Bean
+    public RedisTemplate<String, BlockNode> redisTemplateForBlockNode(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, BlockNode> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        
+        // Use Jackson for value serialization
+        Jackson2JsonRedisSerializer<BlockNode> valueSerializer = new Jackson2JsonRedisSerializer<>(BlockNode.class);
         template.setValueSerializer(valueSerializer);
         
         // Use StringRedisSerializer for keys

@@ -6,6 +6,39 @@
     <title>MetaNode Dashboard</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        /* Card container styling */
+        .card {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        /* Hover effect */
+        .card:hover {
+            box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1);
+            transform: translateY(-5px);
+        }
+
+        /* Border styling */
+        .card-border {
+            border-top: 4px solid;
+            border-image: linear-gradient(45deg, #007bff, #6610f2, #e83e8c) 1;
+        }
+
+        /* Icon color */
+        .icon-color {
+            color: #6c757d;
+        }
+
+        /* Background shading for text areas */
+        .text-bg {
+            background-color: #ffffff;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
 </head>
 <body>
 
@@ -13,13 +46,15 @@
     <div th:replace="fragments/navbar :: navbar"></div>
 
     <div class="container mt-4">
-        <h1>Registered Nodes</h1>
-        <div class="row" th:each="node : ${registeredNodes}">
-            <div class="col-md-4">
-                <div class="card mb-3 shadow-sm">
+        <h1 class="mb-4">Registered Nodes</h1>
+
+        <!-- Flex container to wrap cards horizontally -->
+        <div class="d-flex flex-wrap">
+            <div class="col-lg-4 col-md-6 col-sm-12 mb-4" th:each="node : ${registeredNodes}">
+                <div class="card card-border shadow-sm h-100">
                     <div class="card-body">
                         <h5 class="card-title">
-                            <i class="fas fa-cube mr-2"></i>
+                            <i class="fas fa-cube icon-color mr-2"></i>
                             <span th:text="${node.containerUrl}">Container URL</span>
                         </h5>
                         <p class="card-text">
@@ -28,6 +63,17 @@
                                 <span th:text="${#dates.format(node.lastTimeReport, 'yyyy-MM-dd HH:mm:ss')}">Last Report Time</span>
                             </small>
                         </p>
+                        <hr>
+                        <div class="text-bg">
+                            <p class="card-text">
+                                <strong>Block Count:</strong>
+                                <span th:text="${node.blockCount}">Block Count</span>
+                            </p>
+                            <p class="card-text">
+                                <strong>Total Block Size:</strong>
+                                <span th:text="${node.blockTotalSize}">Total Block Size</span> bytes
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

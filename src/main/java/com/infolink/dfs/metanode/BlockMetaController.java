@@ -126,9 +126,9 @@ public class BlockMetaController {
         	this.status = status;
         	this.nodes = nodes;
         }
-		public List<DfsNode> getNodes() 		{		return nodes;		}
-		public void setNodes(List<DfsNode> nodes) {			this.nodes = nodes;		}
-		public Status getStatus() 				{			return status;		}
-		public void setStatus(Status status) 	{			this.status = status;		}
+		public List<DfsNode> getNodes() 			{		return nodes;				}
+		public void setNodes(List<DfsNode> nodes) 	{			this.nodes = nodes;		}
+		public Status getStatus() 					{			return status;			}
+		public void setStatus(Status status) 		{			this.status = status;	}
     }
 }

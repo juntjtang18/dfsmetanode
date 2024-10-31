@@ -1,6 +1,7 @@
 package com.infolink.dfs.metanode;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -57,8 +58,8 @@ public class NodeManager {
             //logger.debug("A new node registered: {}", nodeUrl);
             returnMsg = "Node registered: " + nodeUrl;
         } else {
-            existingNode.setLastTimeReport(new Date());
-            //logger.debug("Node heartbeat listened from: {}", nodeUrl);
+            registeredNodes.put(nodeUrl, node);
+            
             returnMsg = "Received Heartbeat from " + nodeUrl;
         }
         // Log all registered nodes at debug level after method execution, including revived nodes
@@ -121,11 +122,62 @@ public class NodeManager {
         currentNodeIndex = (currentNodeIndex + 1) % nodeList.size();
         return selectedNode;
     }
+    
+    public ResponseNodesForBlock selectNodeBasedOnBlockCount(Set<String> existingNodeUrls, int n, String requestingNodeUrl) {
+        logger.debug("NodeManager::selectNodeBasedOnBlockCount called");
+        logger.debug("existingNodeUrls={}", existingNodeUrls);
 
-    public ResponseNodesForBlock selectNodeRoundRobin(Set<String> existingNodeUrls, int n, String requestingNode) {
-    	logger.debug("NodeManager::selectNodeRoundRobin called");
+        // Validate inputs early and return appropriate response if invalid
+        if (existingNodeUrls == null) {
+            return new ResponseNodesForBlock(ResponseNodesForBlock.Status.INPUT_PARAMETERS_IS_NULL, new ArrayList<>());
+        }
+
+        List<DfsNode> selectedNodes = new ArrayList<>();
+        ResponseNodesForBlock response = new ResponseNodesForBlock(ResponseNodesForBlock.Status.SUCCESS, selectedNodes);
+        
+        logger.debug("Replication factor (n)={}", n);
+
+        // Check if the existing nodes already meet or exceed the replication factor
+        if (existingNodeUrls.size() >= n) {
+            response.setStatus(ResponseNodesForBlock.Status.ALREADY_ENOUGH_COPIES);
+            logger.debug("existingNode Count >= {}", n);
+            logger.debug("No new node selected for block save.");
+            return response;
+        }
+
+        // Calculate how many more nodes are needed to reach the desired count
+        int nodesNeeded = n - existingNodeUrls.size();
+
+        // Filter registered nodes not in existingNodeUrls, then sort by blockCount
+        List<DfsNode> candidateNodes = registeredNodes.values().stream()
+            .filter(node -> !existingNodeUrls.contains(node.getContainerUrl()))  // Exclude existing nodes
+            .sorted(Comparator.comparingLong(DfsNode::getBlockCount))  // Sort by blockCount in ascending order
+            .collect(Collectors.toList());
+
+        logger.debug("Candidates available for selection (sorted by blockCount): {}", candidateNodes);
+
+        // Select the required number of nodes from sorted candidates
+        for (int i = 0; i < nodesNeeded && i < candidateNodes.size(); i++) {
+            DfsNode selectedNode = candidateNodes.get(i);
+            selectedNodes.add(selectedNode);
+            logger.debug("Node selected based on lowest blockCount: {}", selectedNode.getContainerUrl());
+        }
+
+        // If no nodes were selected, update the status to NO_NODES_AVAILABLE
+        if (selectedNodes.isEmpty()) {
+            logger.debug("No nodes selected based on blockCount criteria.");
+            response.setStatus(ResponseNodesForBlock.Status.NO_NODES_AVAILABLE);
+        }
+
+        logger.debug("Selected nodes to store block: {}", selectedNodes);
+        return response;
+    }
+
+    public ResponseNodesForBlock selectNodesForBlockRoundRobin(Set<String> existingNodeUrls, int n, String requestingNode) {
+    	logger.debug("NodeManager::selectNodesForBlockRoundRobin called");
     	logger.debug("existingNodeUrls={}", existingNodeUrls);
     	logger.debug("requestingNode={}", requestingNode);
+    	
     	if (requestingNode==null || existingNodeUrls==null) {
     		ResponseNodesForBlock response = new ResponseNodesForBlock(ResponseNodesForBlock.Status.INPUT_PARAMETERS_IS_NULL, new ArrayList<>());
     		return response;
@@ -143,7 +195,7 @@ public class NodeManager {
         	logger.debug("no new node selected for block save.");
             return response;
         }
-
+        
         // If the requesting node is not in the existing nodes, add it to the selectedNodes.
         if (!existingNodeUrls.contains(requestingNode)) {
             DfsNode requestingDfsNode = registeredNodes.get(requestingNode);
@@ -179,7 +231,7 @@ public class NodeManager {
                 logger.debug("Node selected: {}", candidateNode.getContainerUrl());
             }
         }
-        logger.debug("By end of selectNodeRoundRobin, existingNodeUrls={}", existingNodeUrls);
+        logger.debug("By end of selectNodesForBlockRoundRobin, existingNodeUrls={}", existingNodeUrls);
         logger.debug("                               selectedNodes={}", selectedNodes);
         
         // If no nodes were selected, update the status to NO_NODES_AVAILABLE.
@@ -187,7 +239,7 @@ public class NodeManager {
         	logger.debug("No node is selected.");
             response.setStatus(ResponseNodesForBlock.Status.NO_NODES_AVAILABLE);
         }
-
+		
         return response;
     }
 
@@ -230,6 +282,8 @@ public class NodeManager {
     	if (containerUrl==null) return null;
     	return registeredNodes.get(containerUrl).getLocalUrl();
     }
+    
+    
     private void handleDeadNode(DfsNode deadNode) {
         try {
             Thread.sleep(30000);
