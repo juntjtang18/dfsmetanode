@@ -83,6 +83,7 @@ public class BlockMetaService {
 
     public ResponseNodesForBlock checkBlockReplicationAndSelectNodes(String hash, String requestingNodeUrl) {
         BlockNode blockNode = redisTemplate.opsForValue().get(BLOCK_NODE_PREFIX + hash);
+        // here there is a logic trap. the existingNodes could be dead ones, so the best way to do is filter out those dead nodes.
         
         Set<String> existingNodes = (blockNode != null) ? blockNode.getNodeUrls() : new HashSet<>();
         ResponseNodesForBlock response = nodeManager.selectNodeBasedOnBlockCount(existingNodes, replicationFactor, requestingNodeUrl);

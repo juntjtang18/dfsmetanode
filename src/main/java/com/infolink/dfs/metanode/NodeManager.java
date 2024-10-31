@@ -50,7 +50,7 @@ public class NodeManager {
             registeredNodes.put(nodeUrl, node);
             node.setLastTimeReport(new Date());
             logger.debug("A dead node revives: {}", nodeUrl);
-            returnMsg = "A dead node revives: " + nodeUrl;
+            return "A dead node revives: " + nodeUrl;
         }
 
         if (existingNode == null) {
@@ -136,9 +136,14 @@ public class NodeManager {
         ResponseNodesForBlock response = new ResponseNodesForBlock(ResponseNodesForBlock.Status.SUCCESS, selectedNodes);
         
         logger.debug("Replication factor (n)={}", n);
-
+        
+        
+        //TODO: first, remove the dead nodes from existingNodeUrls
+        Set<String> activeNodeUrls = new HashSet<>(existingNodeUrls);
+        activeNodeUrls.removeAll(deadNodes.keySet());        
+        
         // Check if the existing nodes already meet or exceed the replication factor
-        if (existingNodeUrls.size() >= n) {
+        if (activeNodeUrls.size() >= n) {
             response.setStatus(ResponseNodesForBlock.Status.ALREADY_ENOUGH_COPIES);
             logger.debug("existingNode Count >= {}", n);
             logger.debug("No new node selected for block save.");
@@ -146,11 +151,11 @@ public class NodeManager {
         }
 
         // Calculate how many more nodes are needed to reach the desired count
-        int nodesNeeded = n - existingNodeUrls.size();
+        int nodesNeeded = n - activeNodeUrls.size();
 
-        // Filter registered nodes not in existingNodeUrls, then sort by blockCount
+        // Filter registered nodes not in activeNodeUrls, then sort by blockCount
         List<DfsNode> candidateNodes = registeredNodes.values().stream()
-            .filter(node -> !existingNodeUrls.contains(node.getContainerUrl()))  // Exclude existing nodes
+            .filter(node -> !activeNodeUrls.contains(node.getContainerUrl()))  // Exclude existing nodes
             .sorted(Comparator.comparingLong(DfsNode::getBlockCount))  // Sort by blockCount in ascending order
             .collect(Collectors.toList());
 
@@ -188,8 +193,12 @@ public class NodeManager {
         
         logger.debug("replication factor={}", n);
         
+        // Remove dead nodes from existingNodeUrls
+        Set<String> activeNodeUrls = new HashSet<>(existingNodeUrls);
+        activeNodeUrls.removeAll(deadNodes.keySet());
+
         // If the number of existing nodes is already greater than or equal to n, return an empty list.
-        if (existingNodeUrls.size() >= n) {
+        if (activeNodeUrls.size() >= n) {
         	response.setStatus(ResponseNodesForBlock.Status.ALREADY_ENOUGH_COPIES);
         	logger.debug("existingNode Count>={}", n);
         	logger.debug("no new node selected for block save.");
@@ -197,41 +206,41 @@ public class NodeManager {
         }
         
         // If the requesting node is not in the existing nodes, add it to the selectedNodes.
-        if (!existingNodeUrls.contains(requestingNode)) {
+        if (!activeNodeUrls.contains(requestingNode)) {
             DfsNode requestingDfsNode = registeredNodes.get(requestingNode);
             if (requestingDfsNode != null) {
                 selectedNodes.add(requestingDfsNode);
             }
         }
 
-        // Collect nodes from registeredNodes using round-robin, skipping those already in existingNodeUrls.
+        // Collect nodes from registeredNodes using round-robin, skipping those already in activeNodeUrls.
         List<DfsNode> registeredNodesList = new ArrayList<>(registeredNodes.values());
         int registeredNodesSize = registeredNodesList.size();
 
     	logger.debug("Looping the registered node to select node.");
     	logger.debug("registeredNodesSize={}", registeredNodesSize);
     	
-        for (int i = 0; i < registeredNodesSize && selectedNodes.size() + existingNodeUrls.size() < n; i++) {
+        for (int i = 0; i < registeredNodesSize && selectedNodes.size() + activeNodeUrls.size() < n; i++) {
             DfsNode candidateNode = registeredNodesList.get(roundRobinIndex);
             
             logger.debug(" i={}, candidateNode is {}", i, candidateNode.getContainerUrl());
-            logger.debug("selectedNodes.size()={}   existingNodeUrls.size()={}", selectedNodes.size(), existingNodeUrls.size());
+            logger.debug("selectedNodes.size()={}   activeNodeUrls.size()={}", selectedNodes.size(), activeNodeUrls.size());
             
             roundRobinIndex = (roundRobinIndex + 1) % registeredNodesSize;
 
-            // Check if the candidate node is already in existingNodeUrls or selectedNodes.
-            boolean isAlreadyExisting = existingNodeUrls.contains(candidateNode.getContainerUrl());
+            // Check if the candidate node is already in activeNodeUrls or selectedNodes.
+            boolean isAlreadyExisting = activeNodeUrls.contains(candidateNode.getContainerUrl());
             boolean isAlreadySelected = selectedNodes.stream()
                     .anyMatch(node -> node.getContainerUrl().equals(candidateNode.getContainerUrl()));
             logger.debug("candidateNode isAlreadyExisting={}, isAlreadySelected={}", isAlreadyExisting, isAlreadySelected);
             
-            // Add the candidate if it's not in existingNodeUrls or selectedNodes, and it's not the requesting node.
+            // Add the candidate if it's not in activeNodeUrls or selectedNodes, and it's not the requesting node.
             if (!isAlreadyExisting && !isAlreadySelected && !candidateNode.getContainerUrl().equals(requestingNode)) {
                 selectedNodes.add(candidateNode);
                 logger.debug("Node selected: {}", candidateNode.getContainerUrl());
             }
         }
-        logger.debug("By end of selectNodesForBlockRoundRobin, existingNodeUrls={}", existingNodeUrls);
+        logger.debug("By end of selectNodesForBlockRoundRobin, activeNodeUrls={}", activeNodeUrls);
         logger.debug("                               selectedNodes={}", selectedNodes);
         
         // If no nodes were selected, update the status to NO_NODES_AVAILABLE.
@@ -242,9 +251,6 @@ public class NodeManager {
 		
         return response;
     }
-
-
-
 
     public List<DfsNode> getRegisteredNodes() {
         return new ArrayList<>(registeredNodes.values());
