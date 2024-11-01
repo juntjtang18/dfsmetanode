@@ -15,9 +15,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infolink.dfs.metanode.BlockMetaController.ResponseNodesForBlock;
 import com.infolink.dfs.shared.DfsNode;
 import com.infolink.dfs.metanode.event.DeadNodeEvent;
@@ -37,11 +40,15 @@ public class NodeManager {
     
     @Autowired
     private ApplicationEventPublisher eventPublisher;
-
+    @Autowired
+    public SimpMessagingTemplate messagingTemplate;
+    //@Autowired
+    public ObjectMapper objectMapper;  
+    
     public NodeManager() {
         this.registeredNodes = new ConcurrentHashMap<>();
         this.deadNodes = new ConcurrentHashMap<>();
-        //this.executorService = Executors.newFixedThreadPool(10);
+        this.objectMapper = new ObjectMapper();
     }
 
     public String registerNode(DfsNode node) {
@@ -50,20 +57,29 @@ public class NodeManager {
         String returnMsg = "";
         
         registeredNodes.put(nodeUrl, node);
+        boolean refreshNode = false;
         
         if (deadNodes.containsKey(nodeUrl)) {
             deadNodes.remove(nodeUrl);
             logger.debug("A dead node revives: {}", nodeUrl);
-            return "A dead node revives: " + nodeUrl;
-        }
-
-        if (existingNode == null) {
-            returnMsg = "Node registered: " + nodeUrl;
+            returnMsg = "A dead node revives: " + nodeUrl;
+            refreshNode = true;
         } else {
-            returnMsg = "Received Heartbeat from " + nodeUrl;
+        	
+	        if (existingNode == null) {
+	            returnMsg = "Node registered: " + nodeUrl;
+	            refreshNode = true;
+	        } else {
+	            returnMsg = "Received Heartbeat from " + nodeUrl;
+	            if(existingNode.getBlockCount() != node.getBlockCount()) {
+	            	refreshNode = true;
+	            }
+	        }
         }
-        // Log all registered nodes at debug level after method execution, including revived nodes
-        //logger.debug("All registered nodes after registration: {}", new ArrayList<>(registeredNodes.values()));
+        
+        if (refreshNode) {
+			invokeClient();
+        }
         return returnMsg;
     }
     
@@ -260,27 +276,47 @@ public class NodeManager {
         registeredNodes.clear();
         deadNodes.clear();
     }
+    
+    void invokeClient() {
+        try {
+            // Convert registeredNodes to JSON
+            List<DfsNode> nodeList = registeredNodes.values().stream().collect(Collectors.toList());
+            String json = objectMapper.writeValueAsString(nodeList); // Serialize to JSON
+            messagingTemplate.convertAndSend("/topic/refresh-node", json); // Notify all clients about the update
+            logger.debug("sending message to websocket:/topic/refresh-node. Message is {}", json);
+            
+        } catch (Exception e) {
+            logger.error("Error converting registeredNodes to JSON", e);
+        }
 
+    }
+    
     @Scheduled(fixedRateString = "${dfs.node.heartbeat.rate:10000}") // Execute every 10 seconds
     public void checkNodeHealth() {
         Date now = new Date();
         logger.info("Starting health check for registered nodes at {}.", now);
 
         // Use an iterator to avoid ConcurrentModificationException
-        registeredNodes.entrySet().removeIf(entry -> {
+        boolean refreshNode = false;
+        for (Map.Entry<String, DfsNode> entry : registeredNodes.entrySet()) {
             DfsNode node = entry.getValue();
             long milliSecondsSinceLastReport = (now.getTime() - node.getLastTimeReport().getTime());
 
             if (milliSecondsSinceLastReport > HEALTH_CHECK_THRESHOLD + 1) {
                 logger.info("The node({}) is down. Moving to deadNodes from registered nodes.", node.getContainerUrl());
                 deadNodes.put(node.getContainerUrl(), node);
-                // Returning true will remove the entry from registeredNodes
+                registeredNodes.remove(node.getContainerUrl());
                 eventPublisher.publishEvent(new DeadNodeEvent(node));
-                return true; // Indicate that this entry should be removed
+                refreshNode = true; // Set the flag to true
             }
-            return false; // Keep the entry in registeredNodes
-        });
-
+        }
+        //if (refreshNode) {
+    	try {
+			invokeClient();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+        //}
         logger.info("Health check completed at {}. Total nodes monitored: {}.", now, registeredNodes.size());
     }
 

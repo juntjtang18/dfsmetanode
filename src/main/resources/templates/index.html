@@ -7,81 +7,86 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
-        /* Card container styling */
-        .card {
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            transition: box-shadow 0.3s ease, transform 0.3s ease;
-            background: #f8f9fa;
-        }
-
-        /* Hover effect */
-        .card:hover {
-            box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1);
-            transform: translateY(-5px);
-        }
-
-        /* Border styling */
-        .card-border {
-            border-top: 4px solid;
-            border-image: linear-gradient(45deg, #007bff, #6610f2, #e83e8c) 1;
-        }
-
-        /* Icon color */
-        .icon-color {
-            color: #6c757d;
-        }
-
-        /* Background shading for text areas */
-        .text-bg {
-            background-color: #ffffff;
-            padding: 10px;
-            border-radius: 5px;
-        }
+        .card { border: 1px solid #e0e0e0; border-radius: 10px; transition: box-shadow 0.3s ease, transform 0.3s ease; background: #f8f9fa; }
+        .card:hover { box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1); transform: translateY(-5px); }
+        .card-border { border-top: 4px solid; border-image: linear-gradient(45deg, #007bff, #6610f2, #e83e8c) 1; }
+        .icon-color { color: #6c757d; }
+        .text-bg { background-color: #ffffff; padding: 10px; border-radius: 5px; }
     </style>
 </head>
 <body>
-
-    <!-- Include the navigation bar -->
     <div th:replace="fragments/navbar :: navbar"></div>
 
     <div class="container mt-4">
         <h1 class="mb-4">Registered Nodes</h1>
-
-        <!-- Flex container to wrap cards horizontally -->
-        <div class="d-flex flex-wrap">
-            <div class="col-lg-4 col-md-6 col-sm-12 mb-4" th:each="node : ${registeredNodes}">
-                <div class="card card-border shadow-sm h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="fas fa-cube icon-color mr-2"></i>
-                            <span th:text="${node.containerUrl}">Container URL</span>
-                        </h5>
-                        <p class="card-text">
-                            <small class="text-muted">
-                                Last Report Time: 
-                                <span th:text="${#dates.format(node.lastTimeReport, 'yyyy-MM-dd HH:mm:ss')}">Last Report Time</span>
-                            </small>
-                        </p>
-                        <hr>
-                        <div class="text-bg">
-                            <p class="card-text">
-                                <strong>Block Count:</strong>
-                                <span th:text="${node.blockCount}">Block Count</span>
-                            </p>
-                            <p class="card-text">
-                                <strong>Total Block Size:</strong>
-                                <span th:text="${node.blockTotalSize}">Total Block Size</span> bytes
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div id="node-container" class="d-flex flex-wrap">
+            <!-- Nodes will be dynamically added here -->
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client/dist/sockjs.min.js"></script>
+    <script>
+        // Function to display nodes
+        function displayNodes(nodes) {
+            const container = document.getElementById('node-container');
+            container.innerHTML = '';
+            nodes.forEach(node => {
+                const card = document.createElement('div');
+                card.classList.add('col-lg-4', 'col-md-6', 'col-sm-12', 'mb-4');
+                card.innerHTML = `
+                    <div class="card card-border shadow-sm h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-cube icon-color mr-2"></i>
+                                ${node.containerUrl}
+                            </h5>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    Last Report Time: ${new Date(node.lastTimeReport).toLocaleString()}
+                                </small>
+                            </p>
+                            <hr>
+                            <div class="text-bg">
+                                <p class="card-text">
+                                    <strong>Block Count:</strong> ${node.blockCount}
+                                </p>
+                                <p class="card-text">
+                                    <strong>Total Block Size:</strong> ${node.blockTotalSize} bytes
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Initialize STOMP client and connect to WebSocket
+        function setupStompClient() {
+        	const socket = new SockJS('/ws-metanode');
+            const stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function(frame) {
+                console.log("Connected to STOMP:", frame);
+
+                // Subscribe to the topic where node updates are sent
+                stompClient.subscribe("/topic/refresh-node", function(message) {
+                    console.log("Node refresh event received:", message);
+                    const nodes = JSON.parse(message.body); // Directly use the parsed message
+                    displayNodes(nodes);
+                });
+            });
+
+            stompClient.onclose = () => console.log('STOMP connection closed');
+            stompClient.onerror = (error) => console.error('STOMP error:', error);
+        }
+
+        // Load initial data and set up STOMP client on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            setupStompClient(); // Set up STOMP client for real-time updates
+        });
+    </script>
 </body>
 </html>

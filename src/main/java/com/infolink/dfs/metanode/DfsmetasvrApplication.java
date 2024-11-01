@@ -8,7 +8,7 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 import jakarta.annotation.PostConstruct;
 
 @SpringBootApplication
-@ComponentScan(basePackages = {"com.infolink.dfs.metanode", "com.infolink.dfs.metanode.mdb"})
+@ComponentScan(basePackages = {"com.infolink.dfs.metanode", "com.infolink.dfs.metanode.mdb", "com.infolink.dfs.metanode.event"})
 @EnableMongoRepositories(basePackages = "com.infolink.dfs.metanode.mdb")
 public class DfsmetasvrApplication {
 
