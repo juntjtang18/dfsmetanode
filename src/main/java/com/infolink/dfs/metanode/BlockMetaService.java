@@ -31,7 +31,7 @@ public class BlockMetaService {
     
     private int replicationFactor;
 
-    private static final String BLOCK_NODE_PREFIX = "BlockNode:";
+    public static final String BLOCK_NODE_PREFIX = "BlockNode:";
 
     @PostConstruct
     public void postConstruct() {

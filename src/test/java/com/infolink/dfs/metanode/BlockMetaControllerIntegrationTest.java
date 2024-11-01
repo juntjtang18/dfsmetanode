@@ -6,9 +6,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.infolink.dfs.shared.DfsFile;
 import com.infolink.dfs.shared.DfsNode;
 
 import java.util.List;
@@ -28,7 +30,9 @@ public class BlockMetaControllerIntegrationTest {
 
     @Autowired
     private BlockMetaService blockMetaService;
-
+    @Autowired
+    private NodeManager nodeManager;
+    
     private String baseUrl;
 
     @BeforeEach
@@ -112,14 +116,22 @@ public class BlockMetaControllerIntegrationTest {
         String hash = "testHash";
 
         // Assume the block is registered before testing this endpoint
+        DfsNode node = new DfsNode("http://node1.example.com", "http://node1.example.com");
+        
+        nodeManager.registerNode(node);
         blockMetaService.registerBlockLocation(hash, "http://node1.example.com");
 
-        ResponseEntity<List> response = restTemplate.getForEntity(baseUrl + "/metadata/block/block-nodes/" + hash, List.class);
-
+        ResponseEntity<List<DfsNode>> response = restTemplate.exchange(
+        	    baseUrl + "/metadata/block/block-nodes/" + hash,
+        	    HttpMethod.GET,
+        	    null,
+        	    new ParameterizedTypeReference<List<DfsNode>>() {}
+        	);
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().size());
-        assertEquals("http://node1.example.com", response.getBody().get(0));
+        DfsNode responsedNode = (DfsNode) response.getBody().get(0);
+        assertEquals("http://node1.example.com", responsedNode.getContainerUrl());
     }
 
     @Test

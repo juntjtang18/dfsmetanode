@@ -20,6 +20,8 @@ public class BlockMetaController {
     
     @Autowired
     private BlockMetaService blockMetaService;
+    @Autowired
+    private NodeManager nodeManager;
     
     @PostMapping("/metadata/block/register-block-location")
     public ResponseEntity<String> registerBlockLocation(@RequestBody RequestBlockNode request) {
@@ -45,14 +47,17 @@ public class BlockMetaController {
     }
     
     @GetMapping("/metadata/block/block-nodes/{hash}")
-    public ResponseEntity<List<String>> blockNodes(@PathVariable String hash) {
+    public ResponseEntity<List<DfsNode>> blockNodes(@PathVariable String hash) {
     	logger.info("/metadata/block-nodes/{} requested.", hash);
     	BlockNode blockNode = blockMetaService.getBlockNodeByHash(hash);
-    	List<String> nodeUrls = new ArrayList<String>();
+    	List<DfsNode> nodes = new ArrayList<DfsNode>();
     	if (blockNode!=null) {
-    		nodeUrls.addAll(blockNode.getNodeUrls());
+    		for(String nodeUrl : blockNode.getNodeUrls()) {
+    			DfsNode node = nodeManager.getNodeByContainerUrl(nodeUrl);
+    			if (node!=null) nodes.add(node);
+    		}
     	}
-    	return ResponseEntity.ok(nodeUrls);
+    	return ResponseEntity.ok(nodes);
     }
     
     @DeleteMapping("/metadata/block/unregister-block/{hash}")

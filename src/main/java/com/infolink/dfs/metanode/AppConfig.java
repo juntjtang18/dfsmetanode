@@ -103,7 +103,13 @@ public class AppConfig {
         
         return template;
     }
-
+	@Bean
+	public RestTemplate restTemplate() {
+	    RestTemplate restTemplate = new RestTemplate();
+	    restTemplate.getMessageConverters().add(new ByteArrayHttpMessageConverter());
+	    return restTemplate;
+	}
+	
     
 	@Bean
 	public ObjectMapper objectMapper() {

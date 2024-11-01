@@ -8,18 +8,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.infolink.dfs.metanode.BlockMetaController.ResponseNodesForBlock;
 import com.infolink.dfs.shared.DfsNode;
+import com.infolink.dfs.metanode.event.DeadNodeEvent;
 
 @Service
 public class NodeManager {
@@ -28,16 +29,19 @@ public class NodeManager {
     private ConcurrentHashMap<String, DfsNode> registeredNodes;
     private ConcurrentHashMap<String, DfsNode> deadNodes;
     private int currentNodeIndex = 0;
-    private ExecutorService executorService;
+    //private ExecutorService executorService;
     private int roundRobinIndex = 0;
 
-    @Value("${dfs.node.heartbeat.rate:30000}") 
-    private int HEALTH_CHECK_THRESHOLD; 
+    @Value("${dfs.node.heartbeat.rate:10000}") 
+    private int HEALTH_CHECK_THRESHOLD;
+    
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     public NodeManager() {
         this.registeredNodes = new ConcurrentHashMap<>();
         this.deadNodes = new ConcurrentHashMap<>();
-        this.executorService = Executors.newFixedThreadPool(10);
+        //this.executorService = Executors.newFixedThreadPool(10);
     }
 
     public String registerNode(DfsNode node) {
@@ -45,21 +49,17 @@ public class NodeManager {
         DfsNode existingNode = registeredNodes.get(nodeUrl);
         String returnMsg = "";
         
+        registeredNodes.put(nodeUrl, node);
+        
         if (deadNodes.containsKey(nodeUrl)) {
             deadNodes.remove(nodeUrl);
-            registeredNodes.put(nodeUrl, node);
-            node.setLastTimeReport(new Date());
             logger.debug("A dead node revives: {}", nodeUrl);
             return "A dead node revives: " + nodeUrl;
         }
 
         if (existingNode == null) {
-            registeredNodes.put(nodeUrl, node);
-            //logger.debug("A new node registered: {}", nodeUrl);
             returnMsg = "Node registered: " + nodeUrl;
         } else {
-            registeredNodes.put(nodeUrl, node);
-            
             returnMsg = "Received Heartbeat from " + nodeUrl;
         }
         // Log all registered nodes at debug level after method execution, including revived nodes
@@ -261,7 +261,7 @@ public class NodeManager {
         deadNodes.clear();
     }
 
-    @Scheduled(fixedRateString = "${dfs.node.heartbeat.rate:30000}") // Execute every 10 seconds
+    @Scheduled(fixedRateString = "${dfs.node.heartbeat.rate:10000}") // Execute every 10 seconds
     public void checkNodeHealth() {
         Date now = new Date();
         logger.info("Starting health check for registered nodes at {}.", now);
@@ -269,13 +269,13 @@ public class NodeManager {
         // Use an iterator to avoid ConcurrentModificationException
         registeredNodes.entrySet().removeIf(entry -> {
             DfsNode node = entry.getValue();
-            long secondsSinceLastReport = (now.getTime() - node.getLastTimeReport().getTime()) / 1000;
+            long milliSecondsSinceLastReport = (now.getTime() - node.getLastTimeReport().getTime());
 
-            if (secondsSinceLastReport > HEALTH_CHECK_THRESHOLD + 1) {
+            if (milliSecondsSinceLastReport > HEALTH_CHECK_THRESHOLD + 1) {
                 logger.info("The node({}) is down. Moving to deadNodes from registered nodes.", node.getContainerUrl());
                 deadNodes.put(node.getContainerUrl(), node);
                 // Returning true will remove the entry from registeredNodes
-                executorService.submit(() -> handleDeadNode(node));
+                eventPublisher.publishEvent(new DeadNodeEvent(node));
                 return true; // Indicate that this entry should be removed
             }
             return false; // Keep the entry in registeredNodes
@@ -289,18 +289,13 @@ public class NodeManager {
     	return registeredNodes.get(containerUrl).getLocalUrl();
     }
     
-    
-    private void handleDeadNode(DfsNode deadNode) {
-        try {
-            Thread.sleep(30000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     public Map<String, DfsNode> getDeadNodes() {
         return deadNodes;
     }
+
+	public boolean isDeadNode(DfsNode deadNode) {
+		return deadNodes.get(deadNode.getContainerUrl()) != null;
+	}
 
 
 }

@@ -209,6 +209,7 @@ public class FileTreeManager {
     }
     
     public DfsFile getFileByPath(String filePath) {
+    	if (!filePath.startsWith("/")) filePath = "/" + filePath;
         String fileKey = FILE_PREFIX + filePath;
         return redisFileRepo.opsForValue().get(fileKey);
     }
