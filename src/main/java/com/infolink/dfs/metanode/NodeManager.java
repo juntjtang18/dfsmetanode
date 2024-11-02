@@ -32,7 +32,6 @@ public class NodeManager {
     private ConcurrentHashMap<String, DfsNode> registeredNodes;
     private ConcurrentHashMap<String, DfsNode> deadNodes;
     private int currentNodeIndex = 0;
-    //private ExecutorService executorService;
     private int roundRobinIndex = 0;
 
     @Value("${dfs.node.heartbeat.rate:10000}") 
@@ -42,13 +41,15 @@ public class NodeManager {
     private ApplicationEventPublisher eventPublisher;
     @Autowired
     public SimpMessagingTemplate messagingTemplate;
-    //@Autowired
+    @Autowired
     public ObjectMapper objectMapper;  
     
     public NodeManager() {
         this.registeredNodes = new ConcurrentHashMap<>();
         this.deadNodes = new ConcurrentHashMap<>();
-        this.objectMapper = new ObjectMapper();
+        //this.objectMapper = new ObjectMapper();
+        //this.eventPublisher = eventPublisher;
+        //this.messagingTemplate = messagingTemplate;
     }
 
     public String registerNode(DfsNode node) {
@@ -78,7 +79,7 @@ public class NodeManager {
         }
         
         if (refreshNode) {
-			invokeClient();
+			invokeClientToRefreshNodes();
         }
         return returnMsg;
     }
@@ -153,8 +154,6 @@ public class NodeManager {
         
         logger.debug("Replication factor (n)={}", n);
         
-        
-        //TODO: first, remove the dead nodes from existingNodeUrls
         Set<String> activeNodeUrls = new HashSet<>(existingNodeUrls);
         activeNodeUrls.removeAll(deadNodes.keySet());        
         
@@ -277,7 +276,7 @@ public class NodeManager {
         deadNodes.clear();
     }
     
-    void invokeClient() {
+    void invokeClientToRefreshNodes() {
         try {
             // Convert registeredNodes to JSON
             List<DfsNode> nodeList = registeredNodes.values().stream().collect(Collectors.toList());
@@ -286,9 +285,19 @@ public class NodeManager {
             logger.debug("sending message to websocket:/topic/refresh-node. Message is {}", json);
             
         } catch (Exception e) {
-            logger.error("Error converting registeredNodes to JSON", e);
+            logger.error("Error sending registeredNodes to client", e);
         }
-
+    }
+    
+    void invokeClientToRefreshDeadNodes() {
+    	try {
+    		List<DfsNode> nodeList = deadNodes.values().stream().collect(Collectors.toList());
+    		String json = objectMapper.writeValueAsString(nodeList);
+    		messagingTemplate.convertAndSend("/topic/refresh-dead-node", json);
+    		logger.debug("Sending message to websocket:/topic/refresh-dead-node. Message is {}", json);
+    	} catch (Exception e) {
+    		logger.error("Error sending dead node message to client.", e);
+    	}
     }
     
     @Scheduled(fixedRateString = "${dfs.node.heartbeat.rate:10000}") // Execute every 10 seconds
@@ -302,7 +311,7 @@ public class NodeManager {
             DfsNode node = entry.getValue();
             long milliSecondsSinceLastReport = (now.getTime() - node.getLastTimeReport().getTime());
 
-            if (milliSecondsSinceLastReport > HEALTH_CHECK_THRESHOLD + 1) {
+            if (milliSecondsSinceLastReport > HEALTH_CHECK_THRESHOLD * 2) {
                 logger.info("The node({}) is down. Moving to deadNodes from registered nodes.", node.getContainerUrl());
                 deadNodes.put(node.getContainerUrl(), node);
                 registeredNodes.remove(node.getContainerUrl());
@@ -312,7 +321,9 @@ public class NodeManager {
         }
         //if (refreshNode) {
     	try {
-			invokeClient();
+    		//Send message to WebSocket client
+			invokeClientToRefreshNodes();
+			invokeClientToRefreshDeadNodes();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -325,8 +336,8 @@ public class NodeManager {
     	return registeredNodes.get(containerUrl).getLocalUrl();
     }
     
-    public Map<String, DfsNode> getDeadNodes() {
-        return deadNodes;
+    public List<DfsNode> getDeadNodes() {
+        return new ArrayList<>(deadNodes.values());
     }
 
 	public boolean isDeadNode(DfsNode deadNode) {

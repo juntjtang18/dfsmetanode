@@ -38,6 +38,12 @@ public class NodeManageController {
         return ResponseEntity.ok(registeredNodes);
     }
     
+    @GetMapping("/metadata/get-dead-nodes") 
+    public ResponseEntity<List<DfsNode>> getDeadNodes() {
+    	List<DfsNode> deadNodes = nodeManager.getDeadNodes();
+    	return ResponseEntity.ok(deadNodes);
+    }
+    
     @PostMapping("/metadata/get-localurl-for-node")
     public ResponseEntity<String> getLocalUrlForNode(@RequestBody String containerUrl) {
     	if (containerUrl==null) {
@@ -53,33 +59,45 @@ public class NodeManageController {
         return ResponseEntity.ok("Registered nodes cleared.");
     }
 
-    @PostMapping("/metadata/upload-url")
-    public ResponseEntity<UploadResponse> getUploadUrl(@RequestBody RequestUpload requestUpload) {
-        String filename = requestUpload.getFilename();
-        String targetDir = requestUpload.getTargetDir();
-        String fullPath = targetDir + "/" + filename;
-        boolean fileExists = fileTreeManager.checkFileExistsByPath(fullPath);
-
-        if (fileExists) {
-        	logger.info("File {} exists.", fullPath);
-        }
-        
-        // Select a node using Weighted Round Robin
-        DfsNode selectedNode = nodeManager.selectNodeRoundRobin();
-
-        if (selectedNode == null) {
-            logger.info("No node selected by nodeManager. Service temporarily unavailable.");
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                                 .body(new UploadResponse(fileExists, null));
-        }
-
-        // Construct the URL for the upload endpoint of the selected node
-        // this need to change if the environment changed. 
-        String uploadUrl = selectedNode.getLocalUrl() + "/dfs/file/upload";
-        logger.info("Upload URL: {}", uploadUrl);
-        return ResponseEntity.ok(new UploadResponse(fileExists, uploadUrl));
-    }
-
+	 @PostMapping("/metadata/upload-url")
+	 public ResponseEntity<UploadResponse> getUploadUrl(@RequestBody RequestUpload requestUpload) {
+	     String filename = requestUpload.getFilename();
+	     String targetDir = requestUpload.getTargetDir();
+	     
+	     // Normalize the filename to a Linux-style path if it contains a Windows path format
+	     filename = normalizePathToLinux(filename);
+	     
+	     String fullPath = targetDir + "/" + filename;
+	     boolean fileExists = fileTreeManager.checkFileExistsByPath(fullPath);
+	
+	     if (fileExists) {
+	         logger.info("File {} exists.", fullPath);
+	     }
+	
+	     // Select a node using Weighted Round Robin
+	     DfsNode selectedNode = nodeManager.selectNodeRoundRobin();
+	
+	     if (selectedNode == null) {
+	         logger.info("No node selected by nodeManager. Service temporarily unavailable.");
+	         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+	                              .body(new UploadResponse(fileExists, null));
+	     }
+	
+	     // Construct the URL for the upload endpoint of the selected node
+	     String uploadUrl = selectedNode.getLocalUrl() + "/dfs/file/upload";
+	     logger.info("Upload URL: {}", uploadUrl);
+	     return ResponseEntity.ok(new UploadResponse(fileExists, uploadUrl));
+	 }
+	
+	 private String normalizePathToLinux(String path) {
+	     if (path.matches("^[a-zA-Z]:\\\\.*")) { // Detect Windows path with drive letter
+	         path = path.replace("\\", "/"); // Replace backslashes with forward slashes
+	         path = "/" + path.substring(0, 1).toLowerCase() + path.substring(2); // Change 'C:\' to '/c/'
+	     }
+	     return path;
+	 }
+	
+	 /*
     @PostMapping("/metadata/dedupe-upload-url")
     public ResponseEntity<UploadResponse> getDedupeUploadUrl(@RequestBody RequestUpload requestUpload) {
         String filename = requestUpload.getFilename();
@@ -104,7 +122,7 @@ public class NodeManageController {
         logger.info("Upload URL: {}", uploadUrl);
         return ResponseEntity.ok(new UploadResponse(fileExists, uploadUrl));
     }
-    
+    */
     @PostMapping("/metadata/download-url")
     public ResponseEntity<String> getDownloadUrl(@RequestBody String hash) {
         logger.info("Received request to get download URL for file with hash: {}", hash);

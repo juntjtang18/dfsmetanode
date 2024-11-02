@@ -126,11 +126,19 @@ public class DeadNodeEventListener {
     }
     
 	private DfsNode findLivingNode(Set<String> existingNodeUrls) {
-        // Implement logic to find a living registered node
+        logger.debug("File a living node for block replication. ");
+        logger.debug("The existing node for a block are: {}", existingNodeUrls);
+        
 		List<DfsNode> livingNodes = nodeManager.getRegisteredNodes();
+		
+		logger.debug("Living nodes are: ");
+		for(DfsNode node : livingNodes) {
+			logger.debug("     {}", node.getContainerUrl());
+		}
 		
         for (DfsNode node : livingNodes) {
             if (!existingNodeUrls.contains(node.getContainerUrl())) {
+            	logger.debug("Pick the living node({}) and return.", node.getContainerUrl());
                 return node; // Return the first living node found
             }
         }
