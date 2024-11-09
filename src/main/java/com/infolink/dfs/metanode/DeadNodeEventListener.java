@@ -1,6 +1,5 @@
 package com.infolink.dfs.metanode;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infolink.dfs.metanode.event.DeadNodeEvent;
 import com.infolink.dfs.metanode.mdb.BlockNode;
 import com.infolink.dfs.shared.DfsNode;
@@ -14,17 +13,15 @@ import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -41,8 +38,7 @@ public class DeadNodeEventListener {
     
     @Autowired
     private RestTemplate restTemplate;
-    @Autowired
-    private ObjectMapper objectMapper;    
+    
     public DeadNodeEventListener() {
     }
 
@@ -69,8 +65,8 @@ public class DeadNodeEventListener {
                 Set<String> nodeUrls = blockNode.getNodeUrls();
                 if (nodeUrls.contains(deadNode.getContainerUrl())) {
                     logger.info("Replicating block {} to a living node.", blockNode.getHash());
-                    nodeUrls.remove(deadNode.getContainerUrl());
                     
+                    nodeUrls.remove(deadNode.getContainerUrl());
                     replicateBlockToLivingNode(nodeUrls, blockNode.getHash());
                 }
                 
@@ -101,22 +97,21 @@ public class DeadNodeEventListener {
 
         String targetNodeUrl = existingNodeUrls.iterator().next();
         String url = targetNodeUrl + "/dfs/block/replicate-to-another-node";
-
+        logger.debug("Replication executing node is: {}", targetNodeUrl);
+        logger.debug("URL for executing replication is: {}", url);
         try {
-            String nodeJson = objectMapper.writeValueAsString(newNode);
-            
-            Map<String, Object> request = new HashMap<>();
-            request.put("blockHash", blockHash);
-            request.put("targetNode", nodeJson);  // Pass JSON string here
+            RequestReplicateBlock request = new RequestReplicateBlock();
+            request.setBlockHash(blockHash);
+            request.setTargetNode(newNode); // Assuming DfsNode has necessary properties set
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+            HttpEntity<RequestReplicateBlock> entity = new HttpEntity<>(request, headers);
 
             ResponseEntity<String> response = restTemplate.exchange(
                 url, HttpMethod.POST, entity, String.class);
 
-            logger.info("Replicating block {} to node {}. Response: {}", blockHash, newNode.getContainerUrl(), response.getBody());
+            logger.info("Replicating block {} to node {}. Response.status={}, Response: {}", blockHash, newNode.getContainerUrl(), response.getStatusCode(), response.getBody());
             return response.getStatusCode().is2xxSuccessful();
 
         } catch (Exception e) {
@@ -130,15 +125,16 @@ public class DeadNodeEventListener {
         logger.debug("The existing node for a block are: {}", existingNodeUrls);
         
 		List<DfsNode> livingNodes = nodeManager.getRegisteredNodes();
+		Collections.sort(livingNodes, Comparator.comparingLong(DfsNode::getBlockCount));
 		
 		logger.debug("Living nodes are: ");
 		for(DfsNode node : livingNodes) {
-			logger.debug("     {}", node.getContainerUrl());
+			logger.debug("     {}-blockCount={}", node.getContainerUrl(), node.getBlockCount());
 		}
 		
         for (DfsNode node : livingNodes) {
             if (!existingNodeUrls.contains(node.getContainerUrl())) {
-            	logger.debug("Pick the living node({}) and return.", node.getContainerUrl());
+            	logger.debug("Pick the living node({}) with block {} and return.", node.getContainerUrl(), node.getBlockCount());
                 return node; // Return the first living node found
             }
         }

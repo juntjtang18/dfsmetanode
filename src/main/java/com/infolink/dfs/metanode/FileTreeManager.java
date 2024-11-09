@@ -64,7 +64,12 @@ public class FileTreeManager {
         createDirectoriesRecursively(targetDirectory, owner);
 
         //String filePath = targetDirectory + "/" + fileName;
-        String fileKey 		= FILE_PREFIX + targetDirectory + "/" + fileName; // Directly use filePath as the key
+        String fileKey;
+        if (targetDirectory.equals("/")) {
+        	fileKey 		= FILE_PREFIX + "/" + fileName; 
+        } else {
+        	fileKey 		= FILE_PREFIX + targetDirectory + "/" + fileName; 
+        }
         String parentDirKey = DIR_PREFIX  + targetDirectory;
         String hashKey		= HASH_PREFIX + dfsFile.getHash();
         

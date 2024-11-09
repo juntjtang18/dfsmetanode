@@ -22,8 +22,10 @@
         <div id="node-container" class="d-flex flex-wrap">
             <!-- Nodes will be dynamically added here -->
         </div>
+        <p id="no-active-nodes" class="text-muted" style="display: none;">No active nodes running.</p>
     </div>
-    <div class="container mt-4">
+    
+    <div class="container mt-4" id="dead-node-section" style="display: none;">
         <h1 class="mb-4">Dead Nodes</h1>
         <div id="dead-node-container" class="d-flex flex-wrap">
             <!-- Dead Nodes will be dynamically added here -->
@@ -37,71 +39,85 @@
         // Function to display registered nodes
         function displayNodes(nodes) {
             const container = document.getElementById('node-container');
+            const noActiveNodes = document.getElementById('no-active-nodes');
             container.innerHTML = '';
-            nodes.forEach(node => {
-                const card = document.createElement('div');
-                card.classList.add('col-lg-3', 'col-md-4', 'col-sm-6', 'mb-4');
-                card.innerHTML = `
-                    <div class="card card-border shadow-sm h-100">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <i class="fas fa-cube icon-color mr-2"></i>
-                                ${node.containerUrl}
-                            </h5>
-                            <p class="card-text">
-                                <small class="text-muted">
-                                    Last Report Time: ${new Date(node.lastTimeReport).toLocaleString()}
-                                </small>
-                            </p>
-                            <hr>
-                            <div class="text-bg">
+
+            if (nodes.length === 0) {
+                noActiveNodes.style.display = 'block';
+            } else {
+                noActiveNodes.style.display = 'none';
+                nodes.forEach(node => {
+                    const card = document.createElement('div');
+                    card.classList.add('col-lg-3', 'col-md-4', 'col-sm-6', 'mb-4');
+                    card.innerHTML = `
+                        <div class="card card-border shadow-sm h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-cube icon-color mr-2"></i>
+                                    ${node.containerUrl}
+                                </h5>
                                 <p class="card-text">
-                                    <strong>Block Count:</strong> ${node.blockCount}
+                                    <small class="text-muted">
+                                        Last Report Time: ${new Date(node.lastTimeReport).toLocaleString()}
+                                    </small>
                                 </p>
-                                <p class="card-text">
-                                    <strong>Total Block Size:</strong> ${node.blockTotalSize} bytes
-                                </p>
+                                <hr>
+                                <div class="text-bg">
+                                    <p class="card-text">
+                                        <strong>Block Count:</strong> ${node.blockCount}
+                                    </p>
+                                    <p class="card-text">
+                                        <strong>Total Block Size:</strong> ${node.blockTotalSize} bytes
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
+                    `;
+                    container.appendChild(card);
+                });
+            }
         }
 
         // Function to display dead nodes
         function displayDeadNodes(deadNodes) {
             const container = document.getElementById('dead-node-container');
+            const deadNodeSection = document.getElementById('dead-node-section');
             container.innerHTML = '';
-            deadNodes.forEach(node => {
-                const card = document.createElement('div');
-                card.classList.add('col-lg-3', 'col-md-4', 'col-sm-6', 'mb-4');
-                card.innerHTML = `
-                    <div class="card card-border shadow-sm h-100">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <i class="fas fa-skull-crossbones icon-color mr-2"></i>
-                                ${node.containerUrl}
-                            </h5>
-                            <p class="card-text">
-                                <small class="text-muted">
-                                    Last Active Time: ${new Date(node.lastActiveTime).toLocaleString()}
-                                </small>
-                            </p>
-                            <hr>
-                            <div class="text-bg">
+
+            if (deadNodes.length === 0) {
+                deadNodeSection.style.display = 'none';
+            } else {
+                deadNodeSection.style.display = 'block';
+                deadNodes.forEach(node => {
+                    const card = document.createElement('div');
+                    card.classList.add('col-lg-3', 'col-md-4', 'col-sm-6', 'mb-4');
+                    card.innerHTML = `
+                        <div class="card card-border shadow-sm h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-skull-crossbones icon-color mr-2"></i>
+                                    ${node.containerUrl}
+                                </h5>
                                 <p class="card-text">
-                                    <strong>Block Count:</strong> ${node.blockCount}
+                                    <small class="text-muted">
+                                        Last Active Time: ${new Date(node.lastActiveTime).toLocaleString()}
+                                    </small>
                                 </p>
-                                <p class="card-text">
-                                    <strong>Total Block Size:</strong> ${node.blockTotalSize} bytes
-                                </p>
+                                <hr>
+                                <div class="text-bg">
+                                    <p class="card-text">
+                                        <strong>Block Count:</strong> ${node.blockCount}
+                                    </p>
+                                    <p class="card-text">
+                                        <strong>Total Block Size:</strong> ${node.blockTotalSize} bytes
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
+                    `;
+                    container.appendChild(card);
+                });
+            }
         }
 
         // Initialize STOMP client and connect to WebSocket

@@ -8,10 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.mongodb.MongoDatabaseFactory;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
-import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -27,13 +23,12 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration
-@EnableMongoRepositories(basePackages = "com.fdu.msacs.dfs.metanode.mdb")
 @EnableScheduling
 public class AppConfig {
     private static final Logger logger = LoggerFactory.getLogger(AppConfig.class);
     
-    @Value("${spring.data.mongodb.uri}")
-    private String mongodbUri;
+    //@Value("${spring.data.mongodb.uri}")
+    //private String mongodbUri;
     @Value("${dfs.replication.factor:3}")
     private int replicateFactor;
     
@@ -42,19 +37,20 @@ public class AppConfig {
     @PostConstruct
     public void init() {
         // Set MongoDB URI dynamically based on environment
-        String effectiveMongoUri = EnvironmentUtils.isInDocker() 
-            ? "mongodb://mongodb:27017" 
-            : "mongodb://localhost:27017";
-        System.setProperty("spring.data.mongodb.uri", effectiveMongoUri);
+        //String effectiveMongoUri = EnvironmentUtils.isInDocker() 
+        //    ? "mongodb://mongodb:27017" 
+        //    : "mongodb://localhost:27017";
+        //System.setProperty("spring.data.mongodb.uri", effectiveMongoUri);
         
         // Set Redis host dynamically based on environment
         this.redisHost = EnvironmentUtils.isInDocker() ? "redis" : "localhost";
         System.setProperty("spring.redis.host", redisHost);
         
-        logger.info("MongoDB URI set to: {}", effectiveMongoUri);
+        //logger.info("MongoDB URI set to: {}", effectiveMongoUri);
         logger.info("Redis host set to: {}", redisHost);
     }
     
+    /*
     @Bean
     public MongoDatabaseFactory mongoDatabaseFactory() {
         String mongodbUri = System.getProperty("spring.data.mongodb.uri");
@@ -66,6 +62,7 @@ public class AppConfig {
     public MongoTemplate mongoTemplate() {
         return new MongoTemplate(mongoDatabaseFactory());
     }
+    */
     
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {

@@ -1,14 +1,13 @@
 package com.infolink.dfs.metanode.mdb;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-@Document(collection = "nodeFileMappings")
+//@Document(collection = "nodeFileMappings")
 public class NodeFileMapping {
     @Id
     private String nodeUrl;

@@ -144,7 +144,7 @@ public class NodeManageController {
                     .body("No node available to download.");
         }
 
-        String downloadUrl = selectedNode.getLocalUrl() + "/dfs/file/download";
+        String downloadUrl = selectedNode.getLocalUrl() + "/dfs/file/downloadByHash?hash=" + hash;
         logger.info("Node selected: {}. Generated download URL: {}", selectedNode.getLocalUrl(), downloadUrl);
 
         return ResponseEntity.ok(downloadUrl);

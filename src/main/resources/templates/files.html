@@ -6,6 +6,12 @@
     <title>MetaNode Files</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+	<style>
+	    /* Optional custom width for the modal */
+	    .modal-wide {
+	        max-width: 80%; /* Adjust as necessary for a wider modal */
+	    }
+	</style>
 </head>
 <body>
 
@@ -30,7 +36,27 @@
             </div>
         </div>
     </div>
-
+    
+    
+	<!-- Block Nodes Modal -->
+	<div class="modal fade" id="blockNodesModal" tabindex="-1" role="dialog" aria-labelledby="blockNodesModalLabel" aria-hidden="true">
+	    <div class="modal-dialog modal-lg modal-wide" role="document"> <!-- Added modal-lg and custom class modal-wide -->
+	        <div class="modal-content">
+	            <div class="modal-header">
+	                <h5 class="modal-title" id="blockNodesModalLabel">Block Nodes</h5>
+	                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+	                    <span aria-hidden="true">&times;</span>
+	                </button>
+	            </div>
+	            <div class="modal-body">
+	                <ul id="blockNodesList"></ul>
+	            </div>
+	            <div class="modal-footer">
+	                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+	            </div>
+	        </div>
+	    </div>
+	</div>
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
@@ -63,6 +89,7 @@
             }
         }
 
+        <!-- Update the file item template in displayFiles -->
         function displayFiles(files) {
             const fileList = document.getElementById("fileList");
             fileList.innerHTML = "";  // Clear existing file list
@@ -83,16 +110,21 @@
                                 </div>
                             </li>`;
                     } else {
-                        // Template for a file with a block nodes icon on the right
+                        // Template for a file with download and block nodes icons on the right
                         fileItem = `
                             <li class="list-group-item d-flex justify-content-between align-items-center file">
                                 <div>
                                     <i class="file-icon fas fa-file"></i>
                                     <strong> ${file.name}</strong>
                                 </div>
-                                <span class="text-info" style="cursor:pointer;" onclick="fetchAndDisplayBlockNodes('${file.hash}')">
-                                    <i class="fas fa-cubes"></i> <!-- Block nodes icon -->
-                                </span>
+                                <div>
+                                    <span class="text-info" style="cursor:pointer;" onclick="fetchAndDisplayBlockNodes('${file.hash}')">
+                                        <i class="fas fa-cubes"></i> <!-- Block nodes icon -->
+                                    </span>
+                                    <span class="text-success" style="cursor:pointer; margin-left: 10px;" onclick="downloadFile('${file.hash}')">
+                                        <i class="fas fa-download"></i> <!-- Download icon -->
+                                    </span>
+                                </div>
                             </li>`;
                     }
 
@@ -103,29 +135,29 @@
         }
         
         async function fetchAndDisplayBlockNodes(fileHash) {
-            console.log("fetch blockNodes for fileHash:");
-            console.log(fileHash);
+            console.log("fetch blockNodes for fileHash:", fileHash);
             
             try {
                 const response = await fetch("/metadata/file/block-nodes", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    // Use JSON.stringify to send just the string without extra quotes
-                    body: fileHash // This will send the fileHash as a plain string
+                    body: fileHash // Send the fileHash as a plain string
                 });
 
                 if (!response.ok) {
                     console.error("Failed to fetch block nodes:", response.statusText);
                     return;
                 }
-                console.log(response);
                 
                 const blockNodes = await response.json();
                 console.log("Block nodes for file:", blockNodes);
                 
-                // Display block nodes (e.g., in a modal or alert for simplicity)
-                let blockNodeInfo = blockNodes.map(node => `<li>${node.hash} - Nodes: ${[...node.nodeUrls].join(", ")}</li>`).join("");
-                alert("Block Nodes:\n" + blockNodeInfo);  // Replace with more advanced UI if needed
+                // Populate the modal with block nodes
+                const blockNodesList = document.getElementById("blockNodesList");
+                blockNodesList.innerHTML = blockNodes.map(node => `<li>${node.hash} - Nodes: ${[...node.nodeUrls].join(", ")}</li>`).join("");
+
+                // Show the modal
+                $('#blockNodesModal').modal('show');
 
             } catch (error) {
                 console.error("Error fetching block nodes:", error);
@@ -168,6 +200,56 @@
         document.addEventListener("DOMContentLoaded", () => {
             fetchFiles(currentDirectory);  // Initial fetch for the root directory
         });
+        
+        async function downloadFile(fileHash) {
+            try {
+                // Fetch the download URL from your server
+                const urlResponse = await fetch("/metadata/download-url", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: fileHash  // Send fileHash in request body
+                });
+
+                if (!urlResponse.ok) {
+                    console.error("Failed to retrieve download URL:", urlResponse.statusText);
+                    alert("Failed to retrieve download URL.");
+                    return;
+                }
+
+                const downloadUrl = await urlResponse.text();
+                console.log("downloadUrl =", downloadUrl);
+
+                if (downloadUrl.includes("No node available")) {
+                    alert("No node available for downloading this file.");
+                    return;
+                }
+
+                // Fetch the file data as a Blob from the download URL
+                const fileResponse = await fetch(downloadUrl);
+
+                if (!fileResponse.ok) {
+                    console.error("Failed to download file:", fileResponse.statusText);
+                    alert("Failed to download file.");
+                    return;
+                }
+
+                const blob = await fileResponse.blob();
+                const fileName = downloadUrl.split('/').pop(); // Get the filename from URL
+
+                // Create a temporary anchor element for downloading
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = fileName;  // Set the file name
+                document.body.appendChild(a);
+                a.click();  // Trigger download
+                document.body.removeChild(a);  // Clean up
+
+            } catch (error) {
+                console.error("Error during download:", error);
+                alert("An error occurred while trying to download the file.");
+            }
+        }
+
     </script>
 
 </body>
