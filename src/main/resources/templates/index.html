@@ -35,7 +35,11 @@
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client/dist/sockjs.min.js"></script>
-    <script>
+    <script th:inline="javascript">
+	    // Retrieve initial registered nodes from Thymeleaf model
+	    const initialNodes = /*[[${registeredNodes}]]*/ [];
+	    console.log("initialNodes=", initialNodes);
+    
         // Function to display registered nodes
         function displayNodes(nodes) {
             const container = document.getElementById('node-container');
@@ -149,6 +153,7 @@
 
         // Load initial data and set up STOMP client on page load
         document.addEventListener('DOMContentLoaded', () => {
+            displayNodes(initialNodes);  // Display initial nodes on page load
             setupStompClient(); // Set up STOMP client for real-time updates
         });
     </script>
